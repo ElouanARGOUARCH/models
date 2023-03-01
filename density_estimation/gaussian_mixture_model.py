@@ -10,6 +10,8 @@ class DiagGaussianMixtEM(torch.nn.Module):
         self.log_pi = torch.log(torch.ones([self.K])/self.K)
         self.m = self.target_samples[torch.randint(low= 0, high = self.target_samples.shape[0],size = [self.K])]
         self.log_s = torch.log(torch.var(self.target_samples, dim = 0)).unsqueeze(0).repeat(self.K, 1)/2
+        self.reference= torch.distributions.MultivariateNormal(torch.zeros(self.p), torch.eye(self.p))
+        self.w = torch.distributions.Dirichlet(torch.ones(target_samples.shape[0])).sample()
 
         self.loss_values = []
 
@@ -30,52 +32,51 @@ class DiagGaussianMixtEM(torch.nn.Module):
 
     def compute_log_v(self,x):
         z = self.forward(x)
-        unormalized_log_v = self.reference_log_density(z) + self.log_pi.unsqueeze(0).repeat(x.shape[0],1)+ self.log_det_J(x)
+        unormalized_log_v = self.reference.log_prob(z) + self.log_pi.unsqueeze(0).repeat(x.shape[0],1)+ self.log_det_J(x)
         return unormalized_log_v - torch.logsumexp(unormalized_log_v, dim = -1, keepdim= True)
 
-    def sample_latent(self,x):
+    def sample_latent(self,x, joint = False):
         z = self.forward(x)
         pick = torch.distributions.Categorical(torch.exp(self.compute_log_v(x))).sample()
-        return torch.stack([z[i,pick[i],:] for i in range(x.shape[0])])
+        if not joint:
+            return z[range(z.shape[0]), pick, :]
+        else:
+            return z[range(z.shape[0]), pick, :],pick
 
-    def sample_reference(self, num_samples):
-        return torch.distributions.MultivariateNormal(torch.zeros(self.p), torch.eye(self.p)).sample(num_samples)
-
-    def reference_log_density(self, z):
-        return -torch.sum(torch.square(z)/2, dim = -1) - torch.log(torch.tensor([2*torch.pi], device = z.device))*self.p/2
-
-    def log_density(self, x):
+    def log_prob(self, x):
         z = self.forward(x)
-        return torch.logsumexp(self.reference_log_density(z) + self.log_pi.unsqueeze(0).repeat(x.shape[0],1) + self.log_det_J(x),dim=-1)
+        return torch.logsumexp(self.reference.log_prob(z) + self.log_pi.unsqueeze(0).repeat(x.shape[0],1) + self.log_det_J(x),dim=-1)
 
-    def sample(self, num_samples):
-        z = self.sample_reference(num_samples)
+    def sample(self, num_samples, joint=False):
+        z = self.reference.sample(num_samples)
         x = self.backward(z)
         pick = torch.distributions.Categorical(torch.exp(self.log_pi.unsqueeze(0).repeat(x.shape[0],1))).sample()
-        return torch.stack([x[i,pick[i],:] for i in range(z.shape[0])])
+        if not joint:
+            return x[range(x.shape[0]), pick, :]
+        else:
+            return x[range(x.shape[0]), pick, :],pick
 
-    def M_step(self, batch):
-        v = torch.exp(self.compute_log_v(batch))
+    def M_step(self, x,w):
+        v = torch.exp(self.compute_log_v(x))*w.unsqueeze(-1)
         c = torch.sum(v, dim=0)
         self.log_pi = torch.log(c) - torch.logsumexp(torch.log(c), dim = 0)
-        self.m = torch.sum(v.unsqueeze(-1).repeat(1, 1, self.p) * batch.unsqueeze(-2).repeat(1, self.K, 1),
+        self.m = torch.sum(v.unsqueeze(-1).repeat(1, 1, self.p) * x.unsqueeze(-2).repeat(1, self.K, 1),
                                 dim=0) / c.unsqueeze(-1)
-        temp = batch.unsqueeze(1).repeat(1,self.K, 1) - self.m.unsqueeze(0).repeat(batch.shape[0],1,1)
+        temp = x.unsqueeze(1).repeat(1,self.K, 1) - self.m.unsqueeze(0).repeat(x.shape[0],1,1)
         temp2 = torch.square(temp)
         self.log_s = torch.log(torch.sum(v.unsqueeze(-1).repeat(1, 1, self.p) * temp2,dim=0)/c.unsqueeze(-1))/2
 
-    def train(self, epochs):
-        pbar = tqdm(range(epochs))
+    def train(self, epochs, verbose = False):
+        if verbose:
+            pbar = tqdm(range(epochs))
+        else:
+            pbar = range(epochs)
         for t in pbar:
-            self.M_step(self.target_samples)
-            iteration_loss = -torch.mean(self.log_density(self.target_samples)).detach().item()
+            self.M_step(self.target_samples, self.w)
+            iteration_loss = -torch.sum(self.log_prob(self.target_samples)*self.w).detach().item()
             self.loss_values.append(iteration_loss)
-            pbar.set_postfix_str('loss = ' + str(iteration_loss))
-    def sample_joint(self, num_samples):
-        z = self.sample_reference(num_samples)
-        x = self.backward(z)
-        pick = torch.distributions.Categorical(torch.exp(self.log_pi.unsqueeze(0).repeat(x.shape[0],1))).sample()
-        return torch.stack([x[i,pick[i],:] for i in range(z.shape[0])]), pick
+            if verbose:
+                pbar.set_postfix_str('loss = ' + str(iteration_loss))
 
 class FullRankGaussianMixtEM(torch.nn.Module):
     def __init__(self, target_samples, K):
@@ -87,7 +88,8 @@ class FullRankGaussianMixtEM(torch.nn.Module):
         self.m = self.target_samples[torch.randint(low=0, high=self.target_samples.shape[0], size=[self.K])]
         temp = torch.cov(self.target_samples.T)
         self.Sigma = ((temp + temp.T)/2).unsqueeze(0).repeat(self.K, 1, 1)
-
+        self.reference= torch.distributions.MultivariateNormal(torch.zeros(self.p), torch.eye(self.p))
+        self.w = torch.distributions.Dirichlet(torch.ones(target_samples.shape[0])).sample()
         self.loss_values = []
 
     def forward(self, x):
@@ -108,53 +110,50 @@ class FullRankGaussianMixtEM(torch.nn.Module):
 
     def compute_log_v(self, x):
         z = self.forward(x)
-        unormalized_log_v = self.reference_log_prob(z) + self.log_pi.unsqueeze(0).repeat(x.shape[0],1) + self.log_det_J(x)
+        unormalized_log_v = self.reference.log_prob(z) + self.log_pi.unsqueeze(0).repeat(x.shape[0],1) + self.log_det_J(x)
         return unormalized_log_v - torch.logsumexp(unormalized_log_v, dim=-1, keepdim=True)
 
-    def sample_latent(self, x):
+    def sample_latent(self, x, joint = True):
         z = self.forward(x)
         pick = torch.distributions.Categorical(torch.exp(self.compute_log_v(x))).sample()
-        return torch.stack([z[i, pick[i], :] for i in range(x.shape[0])])
-
-    def sample_reference(self, num_samples):
-        return torch.distributions.MultivariateNormal(torch.zeros(self.p, torch.eye(self.p))).sample(num_samples)
-
-    def reference_log_prob(self, z):
-        return -torch.sum(torch.square(z) / 2, dim=-1) - torch.log(
-            torch.tensor([2 * torch.pi], device=z.device)) * self.p / 2
+        if not joint:
+            return z[range(z.shape[0]), pick, :]
+        else:
+            return z[range(z.shape[0]), pick, :],pick
 
     def log_prob(self, x):
         z = self.forward(x)
         return torch.logsumexp(
-            self.reference_log_prob(z) + self.log_pi.unsqueeze(0).repeat(x.shape[0], 1) + self.log_det_J(x), dim=-1)
+            self.reference.log_prob(z) + self.log_pi.unsqueeze(0).repeat(x.shape[0], 1) + self.log_det_J(x), dim=-1)
 
-    def sample(self, num_samples):
-        z = self.sample_reference(num_samples)
+    def sample(self, num_samples, joint = False):
+        z = self.reference.sample(num_samples)
         x = self.backward(z)
         pick = torch.distributions.Categorical(torch.exp(self.log_pi.unsqueeze(0).repeat(x.shape[0], 1))).sample()
-        return torch.stack([x[i, pick[i], :] for i in range(z.shape[0])])
+        if not joint:
+            return x[range(x.shape[0]), pick, :]
+        else:
+            return x[range(x.shape[0]), pick, :],pick
 
-    def sample_joint(self, num_samples):
-        z = self.sample_reference(num_samples)
-        x = self.backward(z)
-        pick = torch.distributions.Categorical(torch.exp(self.log_pi.unsqueeze(0).repeat(x.shape[0],1))).sample()
-        return torch.stack([x[i,pick[i],:] for i in range(z.shape[0])]), pick
-
-    def M_step(self, batch):
-        v = torch.exp(self.compute_log_v(batch))
+    def M_step(self, x,w):
+        v = torch.exp(self.compute_log_v(x))*w.unsqueeze(-1)
         c = torch.sum(v, dim=0)
         self.log_pi = torch.log(c) - torch.logsumexp(torch.log(c), dim=0)
-        self.m = torch.sum(v.unsqueeze(-1).repeat(1, 1, self.p) * batch.unsqueeze(-2).repeat(1, self.K, 1),
+        self.m = torch.sum(v.unsqueeze(-1).repeat(1, 1, self.p) * x.unsqueeze(-2).repeat(1, self.K, 1),
                            dim=0) / c.unsqueeze(-1)
-        temp = (batch.unsqueeze(1).repeat(1, self.K, 1) - self.m.unsqueeze(0).repeat(batch.shape[0], 1, 1)).unsqueeze(
+        temp = (x.unsqueeze(1).repeat(1, self.K, 1) - self.m.unsqueeze(0).repeat(x.shape[0], 1, 1)).unsqueeze(
             -1)
         self.Sigma = torch.sum(v.unsqueeze(-1).unsqueeze(-1).repeat(1, 1, self.p, self.p) * (temp @ torch.transpose(temp, -1, -2)),
             dim=0) / (c.unsqueeze(-1).unsqueeze(-1).repeat(1, self.p, self.p))
 
-    def train(self, epochs):
-        pbar = tqdm(range(epochs))
+    def train(self, epochs, verbose = False):
+        if verbose:
+            pbar = tqdm(range(epochs))
+        else:
+            pbar = range(epochs)
         for t in pbar:
-            self.M_step(self.target_samples)
-            iteration_loss = -torch.mean(self.log_prob(self.target_samples)).detach().item()
+            self.M_step(self.target_samples, self.w)
+            iteration_loss = -torch.sum(self.log_prob(self.target_samples)*self.w).detach().item()
             self.loss_values.append(iteration_loss)
-            pbar.set_postfix_str('loss = ' + str(iteration_loss))
+            if verbose:
+                pbar.set_postfix_str('loss = ' + str(iteration_loss))

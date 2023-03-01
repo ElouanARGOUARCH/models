@@ -13,11 +13,12 @@ class TMC(torch.nn.Module):
 
         self.T = LocationScaleFlow(self.K, self.p)
 
-        self.reference = torch.distributions.MultivariateNormal(torch.zeros(self.p), torch.eye(self.p))
-
         self.loss_values = []
         self.para_list = list(self.parameters())
         self.optimizer = torch.optim.Adam(self.para_list, lr=5e-3)
+
+    def reference_log_prob(self, z):
+        return torch.distributions.MultivariateNormal(torch.zeros(self.p).to(z.device), torch.eye(self.p).to(z.device)).log_prob(z)
 
     def compute_log_w(self, z):
         x = self.T.backward(z)
@@ -29,17 +30,17 @@ class TMC(torch.nn.Module):
         return torch.mean(torch.sum(torch.exp(self.compute_log_w(z))*(self.log_prob(x) - self.target_log_prob(x)),dim = -1))
 
     def DKL_latent(self,z):
-        return torch.mean(self.reference.log_prob(z) - self.latent_log_prob(z))
+        return torch.mean(self.reference_log_prob(z) - self.latent_log_prob(z))
 
-    def sample_model(self, num_samples):
-        z = self.reference.sample(num_samples)
+    def sample(self, num_samples):
+        z = torch.randn(num_samples+[self.p])
         x = self.T.backward(z)
         pick = torch.distributions.Categorical(torch.exp(self.compute_log_w(z))).sample()
-        return torch.stack([x[i, pick[i], :] for i in range(num_samples)])
+        return x[range(x.shape[0]), pick, :]
 
     def log_prob(self, x):
         z = self.T.forward(x)
-        return torch.logsumexp(torch.diagonal(self.compute_log_w(z), 0, -2, -1) + self.reference.log_prob(z) + self.T.log_det_J(z), dim=-1)
+        return torch.logsumexp(torch.diagonal(self.compute_log_w(z), 0, -2, -1) + self.reference_log_prob(z) + self.T.log_det_J(z), dim=-1)
 
     def latent_log_prob(self, z):
         x = self.T.backward(z)
@@ -51,7 +52,7 @@ class TMC(torch.nn.Module):
 
         pbar = tqdm(range(epochs))
         for _ in pbar:
-            z = self.reference.sample([num_samples]).to(device)
+            z = torch.randn([num_samples, self.p]).to(device)
             self.optimizer.zero_grad()
             loss = self.DKL_latent(z)
             loss.backward()

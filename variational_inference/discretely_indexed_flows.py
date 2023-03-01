@@ -14,13 +14,14 @@ class DIFSampler(torch.nn.Module):
 
         self.T = LocationScaleFlow(self.K, self.p)
 
-        self.reference = torch.distributions.MultivariateNormal(torch.zeros(self.p), torch.eye(self.p))
-
         self.loss_values = []
+
+    def reference_log_prob(self, z):
+        return torch.distributions.MultivariateNormal(torch.zeros(self.p).to(z.device), torch.eye(self.p).to(z.device)).log_prob(z)
 
     def compute_log_v(self, x):
         z = self.T.forward(x)
-        log_v = self.reference.log_prob(z) + torch.diagonal(self.w.log_prob(z), 0, -2, -1) + self.T.log_det_J(x)
+        log_v = self.reference_log_prob(z) + torch.diagonal(self.w.log_prob(z), 0, -2, -1) + self.T.log_det_J(x)
         return log_v - torch.logsumexp(log_v, dim=-1, keepdim=True)
 
     def DKL_observed(self, z):
@@ -28,10 +29,10 @@ class DIFSampler(torch.nn.Module):
         return torch.mean(torch.sum(torch.exp(self.w.log_prob(z))*(self.log_prob(x) - self.target_log_prob(x)),dim = -1))
 
     def DKL_latent(self,z):
-        return torch.mean(self.reference.log_prob(z) - self.latent_log_prob(z))
+        return torch.mean(self.reference_log_prob(z) - self.latent_log_prob(z))
 
     def sample(self, num_samples):
-        z = self.reference.sample(num_samples)
+        z = torch.randn(num_samples+[self.p])
         x = self.T.backward(z)
         pick = torch.distributions.Categorical(torch.exp(self.w.log_prob(z))).sample()
         return x[range(x.shape[0]), pick, :]
@@ -42,7 +43,7 @@ class DIFSampler(torch.nn.Module):
 
     def log_prob(self, x):
         z = self.T.forward(x)
-        return torch.logsumexp(torch.diagonal(self.w.log_prob(z), 0, -2, -1) + self.reference.log_prob(z) + self.T.log_det_J(x), dim=-1)
+        return torch.logsumexp(torch.diagonal(self.w.log_prob(z), 0, -2, -1) + self.reference_log_prob(z) + self.T.log_det_J(x), dim=-1)
 
     def train(self, epochs,num_samples):
         self.para_list = list(self.parameters())
@@ -53,7 +54,7 @@ class DIFSampler(torch.nn.Module):
 
         pbar = tqdm(range(epochs))
         for _ in pbar:
-            z = self.reference.sample([num_samples]).to(device)
+            z = torch.randn([num_samples,self.p]).to(device)
             self.optimizer.zero_grad()
             loss = self.DKL_observed(z)
             loss.backward()

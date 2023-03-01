@@ -23,17 +23,20 @@ class Target(torch.nn.Module):
 class TwoCircles(Target):
     def __init__(self):
         super().__init__()
+        self.means = torch.tensor([1.,2.])
+        self.weights = torch.tensor([.5, .5])
+        self.noise = torch.tensor([0.125])
 
-    def sample(self,num_samples, means = torch.tensor([1.,2.]),weights = torch.tensor([.5,.5]), noise = 0.125):
+    def sample(self,num_samples):
         angle = torch.rand(num_samples)*2*math.pi
-        cat = torch.distributions.Categorical(weights).sample(num_samples)
-        x,y = means[cat]*torch.cos(angle) + torch.randn_like(angle)*noise,means[cat]*torch.sin(angle) + torch.randn_like(angle)*noise
+        cat = torch.distributions.Categorical(self.weights).sample(num_samples)
+        x,y = self.means[cat]*torch.cos(angle) + torch.randn_like(angle)*self.noise,self.means[cat]*torch.sin(angle) + torch.randn_like(angle)*self.noise
         return torch.cat([x.unsqueeze(-1),y.unsqueeze(-1)], dim =-1)
 
-    def log_prob(self,samples, means = torch.tensor([1.,2.]),weights = torch.tensor([.5,.5]), noise = 0.125):
-        r = torch.norm(samples, dim=-1).unsqueeze(-1)
-        cat = torch.distributions.Categorical(weights)
-        mvn = torch.distributions.MultivariateNormal(means.unsqueeze(-1), torch.eye(1).unsqueeze(0).repeat(2,1,1)*noise)
+    def log_prob(self,x):
+        r = torch.norm(x, dim=-1).unsqueeze(-1)
+        cat = torch.distributions.Categorical(self.weights.to(x.device))
+        mvn = torch.distributions.MultivariateNormal(self.means.to(x.device).unsqueeze(-1), torch.eye(1).to(x.device).unsqueeze(0).repeat(2,1,1)*self.noise.to(x.device))
         mixt = torch.distributions.MixtureSameFamily(cat, mvn)
         return mixt.log_prob(r)
 
@@ -52,7 +55,23 @@ class Orbits(Target):
         self.mix_target = torch.distributions.MixtureSameFamily(cat, mvn_target)
 
     def sample(self, num_samples):
-        return self.mix_target.sample(num_samples)
+        number_planets = 7
+        covs_target = 0.04 * torch.eye(2).unsqueeze(0).repeat(number_planets, 1, 1)
+        means_target = 2.5 * torch.view_as_real(
+            torch.pow(torch.exp(torch.tensor([2j * 3.1415 / number_planets])), torch.arange(0, number_planets)))
+        weights_target = torch.ones(number_planets)
+
+        mvn_target = torch.distributions.MultivariateNormal(means_target, covs_target)
+        cat = torch.distributions.Categorical(torch.exp(weights_target) / torch.sum(torch.exp(weights_target)))
+        return torch.distributions.MixtureSameFamily(cat, mvn_target).sample(num_samples)
 
     def log_prob(self,x):
-        return self.mix_target.log_prob(x)
+        number_planets = 7
+        covs_target = 0.04 * torch.eye(2).unsqueeze(0).repeat(number_planets, 1, 1)
+        means_target = 2.5 * torch.view_as_real(
+            torch.pow(torch.exp(torch.tensor([2j * 3.1415 / number_planets])), torch.arange(0, number_planets)))
+        weights_target = torch.ones(number_planets).to(x.device)
+
+        mvn_target = torch.distributions.MultivariateNormal(means_target.to(x.device), covs_target.to(x.device))
+        cat = torch.distributions.Categorical(torch.exp(weights_target) / torch.sum(torch.exp(weights_target)))
+        return torch.distributions.MixtureSameFamily(cat, mvn_target).log_prob(x)

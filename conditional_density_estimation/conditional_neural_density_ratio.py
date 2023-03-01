@@ -11,6 +11,8 @@ class NeuralLikelihoodRatio(torch.nn.Module):
         self.D_x = D_x
         self.D_theta = D_theta
 
+        self.w = torch.distributions.Dirichlet(torch.ones(self.D_x.shape[0])).sample()
+
         network_dimensions = [self.p + self.d] + hidden_dims + [1]
         network = []
         for h0, h1 in zip(network_dimensions, network_dimensions[1:]):
@@ -20,12 +22,12 @@ class NeuralLikelihoodRatio(torch.nn.Module):
 
         self.loss_values = []
 
-    def loss(self, x, theta):
+    def loss(self, x, theta,w):
         log_sigmoid = torch.nn.LogSigmoid()
         x_tilde = x[torch.randperm(x.shape[0])]
         true = torch.cat([x, theta], dim=-1)
         fake = torch.cat([x_tilde, theta], dim=-1)
-        return -torch.sum(log_sigmoid(self.logit_r(true)) + log_sigmoid(-self.logit_r(fake)))
+        return -torch.sum(w*(log_sigmoid(self.logit_r(true)) + log_sigmoid(-self.logit_r(fake))))
 
     def log_ratio(self,x,theta):
         return self.logit_r(torch.cat([x, theta], dim=-1)).squeeze(-1)
@@ -36,7 +38,7 @@ class NeuralLikelihoodRatio(torch.nn.Module):
         self.optimizer = torch.optim.Adam(self.para_list, lr)
         if batch_size is None:
             batch_size = self.D_x.shape[0]
-        dataset = torch.utils.data.TensorDataset(self.D_x, self.D_theta)
+        dataset = torch.utils.data.TensorDataset(self.D_x, self.D_theta, self.w)
 
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
@@ -49,7 +51,7 @@ class NeuralLikelihoodRatio(torch.nn.Module):
             dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
             for i, batch in enumerate(dataloader):
                 self.optimizer.zero_grad()
-                batch_loss = self.loss(batch[0].to(device), batch[1].to(device))
+                batch_loss = self.loss(batch[0].to(device), batch[1].to(device), batch[2].to(device))
                 batch_loss.backward()
                 self.optimizer.step()
             with torch.no_grad():

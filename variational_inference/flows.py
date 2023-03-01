@@ -95,17 +95,19 @@ class FlowSampler(torch.nn.Module):
     def DKL_observed(self, batch_x):
         return (self.log_prob(batch_x) - self.target_log_prob(batch_x)).mean()
 
-    def train(self,epochs, num_samples):
+    def train(self,epochs, num_samples,lr = 5e-3, weight_decay = 5e-5, verbose = False):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
         self.para_dict = []
         for model in self.model:
-            self.para_dict.insert(-1, {'params': model.parameters(), 'lr': model.lr,
-                                       'weight_decay': model.weight_decay})
+            self.para_dict.insert(-1, {'params': model.parameters(), 'lr': lr,
+                                       'weight_decay': weight_decay})
             model.to(device)
         self.optimizer = torch.optim.Adam(self.para_dict)
-
-        pbar = tqdm(range(epochs))
+        if verbose:
+            pbar = tqdm(range(epochs))
+        else:
+            pbar = range(epochs)
         for _ in pbar:
             z = self.reference.sample([num_samples]).to(device)
             self.optimizer.zero_grad()
@@ -113,7 +115,8 @@ class FlowSampler(torch.nn.Module):
             loss.backward()
             self.optimizer.step()
             self.loss_values.append(loss.item())
-            pbar.set_postfix_str('loss = ' + str(round(loss.item(), 6)) + ' ; device: ' + str(device))
+            if verbose:
+                pbar.set_postfix_str('loss = ' + str(round(loss.item(), 6)) + ' ; device: ' + str(device))
 
         for model in self.model:
             model.to(torch.device('cpu'))

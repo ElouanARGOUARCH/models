@@ -12,8 +12,6 @@ class DIFDensityEstimationLayer(torch.nn.Module):
         self.T = LocationScaleFlow(self.K, self.p)
 
         self.q_log_prob = q_log_prob
-        self.lr = 5e-3
-        self.weight_decay = 5e-5
 
     def log_v(self,x):
         with torch.no_grad():
@@ -53,8 +51,6 @@ class RealNVPDensityEstimationLayer(torch.nn.Module):
 
         self.mask = [torch.cat([torch.zeros(int(self.p/2)), torch.ones(self.p - int(self.p/2))], dim = 0),torch.cat([torch.ones(int(self.p/2)), torch.zeros(self.p - int(self.p/2))], dim = 0)]
         self.q_log_prob = q_log_prob
-        self.lr = 5e-3
-        self.weight_decay = 5e-5
 
     def sample_forward(self,x):
         with torch.no_grad():
@@ -93,14 +89,20 @@ class FlowDensityEstimation(torch.nn.Module):
         self.structure = structure
         self.N = len(self.structure)
 
-        temp = torch.cov(self.target_samples.T)
-        cov = (temp + temp.T)/2
-        self.reference = torch.distributions.MultivariateNormal(torch.mean(self.target_samples, dim = 0), cov)
+        self.reference_mean = torch.mean(target_samples,dim = 0)
 
-        self.model = [structure[-1][0](self.p,self.structure[-1][1], q_log_prob= self.reference.log_prob)]
+        _ = torch.cov(self.target_samples.T)
+        self.reference_cov = (_ + _.T)/2
+
+        self.w = torch.distributions.Dirichlet(torch.ones(target_samples.shape[0])).sample()
+
+        self.model = [structure[-1][0](self.p,self.structure[-1][1], q_log_prob= self.reference_log_prob)]
         for i in range(self.N - 2, -1, -1):
             self.model.insert(0, structure[i][0](self.p, structure[i][1], q_log_prob=self.model[0].log_prob))
         self.loss_values= []
+
+    def reference_log_prob(self,z):
+        return torch.distributions.MultivariateNormal(self.reference_mean.to(z.device), self.reference_cov.to(z.device)).log_prob(z)
 
     def compute_number_params(self):
         number_params = 0
@@ -109,7 +111,7 @@ class FlowDensityEstimation(torch.nn.Module):
         return number_params
 
     def sample(self, num_samples):
-        z = self.reference.sample(num_samples)
+        z = torch.distributions.MultivariateNormal(self.reference_mean, self.reference_cov).sample(num_samples)
         for i in range(self.N - 1, -1, -1):
             z = self.model[i].sample_backward(z)
         return z
@@ -122,35 +124,37 @@ class FlowDensityEstimation(torch.nn.Module):
     def log_prob(self, x):
         return self.model[0].log_prob(x)
 
-    def loss(self, batch):
-        return - self.log_prob(batch).mean()
+    def loss(self, x,w):
+        return - torch.sum(w*self.log_prob(x))
 
-    def train(self, epochs, batch_size = None):
+    def train(self, epochs, batch_size = None, lr = 5e-3, weight_decay = 5e-5, verbose = False):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
         self.para_dict = []
         for model in self.model:
-            self.para_dict.insert(-1, {'params': model.parameters(), 'lr': model.lr, 'weight_decay':model.weight_decay})
+            self.para_dict.insert(-1, {'params': model.parameters(), 'lr': lr, 'weight_decay':weight_decay})
             model.to(device)
         self.optimizer = torch.optim.Adam(self.para_dict)
 
         if batch_size is None:
             batch_size = self.target_samples.shape[0]
-        dataset = torch.utils.data.TensorDataset(self.target_samples)
-
-        pbar = tqdm(range(epochs))
+        dataset = torch.utils.data.TensorDataset(self.target_samples, self.w)
+        if verbose:
+            pbar = tqdm(range(epochs))
+        else:
+            pbar = range(epochs)
         for t in pbar:
             dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
             for i, batch in enumerate(dataloader):
-                x = batch[0].to(device)
                 self.optimizer.zero_grad()
-                batch_loss = self.loss(x)
+                batch_loss = self.loss(batch[0].to(device),batch[1].to(device))
                 batch_loss.backward()
                 self.optimizer.step()
             with torch.no_grad():
-                iteration_loss = torch.tensor([self.loss(batch[0].to(device)) for i, batch in enumerate(dataloader)]).mean().item()
+                iteration_loss = torch.tensor([self.loss(batch[0].to(device),batch[1].to(device)) for i, batch in enumerate(dataloader)]).sum().item()
             self.loss_values.append(iteration_loss)
-            pbar.set_postfix_str('loss = ' + str(round(iteration_loss,6)) + ' ; device: ' + str(device))
+            if verbose:
+                pbar.set_postfix_str('loss = ' + str(round(iteration_loss,6)) + ' ; device: ' + str(device))
 
         self.to('cpu')
         for layer in self.model:
