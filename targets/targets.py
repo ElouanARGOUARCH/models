@@ -9,6 +9,9 @@ class Target(torch.nn.Module):
     def sample(self):
         raise NotImplementedError
 
+    def log_prob(self):
+        raise NotImplementedError
+
     def visual(self, num_samples = 5000):
         samples = self.sample([num_samples])
         if samples.shape[-1] == 1:
