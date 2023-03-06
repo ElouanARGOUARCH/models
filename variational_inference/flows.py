@@ -66,7 +66,6 @@ class FlowSampler(torch.nn.Module):
         for i in range(self.N - 1):
             self.model[i].q_log_prob = self.model[i + 1].log_prob
         self.model[-1].q_log_prob = self.reference.log_prob
-        self.loss_values = []
 
     def compute_number_params(self):
         number_params = 0
@@ -114,7 +113,6 @@ class FlowSampler(torch.nn.Module):
             loss = self.loss(z)
             loss.backward()
             self.optimizer.step()
-            self.loss_values.append(loss.item())
             if verbose:
                 pbar.set_postfix_str('loss = ' + str(round(loss.item(), 6)) + ' ; device: ' + str(device))
 

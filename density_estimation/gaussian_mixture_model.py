@@ -13,8 +13,6 @@ class DiagGaussianMixtEM(torch.nn.Module):
         self.reference= torch.distributions.MultivariateNormal(torch.zeros(self.p), torch.eye(self.p))
         self.w = torch.distributions.Dirichlet(torch.ones(target_samples.shape[0])).sample()
 
-        self.loss_values = []
-
     def forward(self, x):
         desired_size = list(x.shape)
         desired_size.insert(-1, self.K)
@@ -73,9 +71,8 @@ class DiagGaussianMixtEM(torch.nn.Module):
             pbar = range(epochs)
         for t in pbar:
             self.M_step(self.target_samples, self.w)
-            iteration_loss = -torch.sum(self.log_prob(self.target_samples)*self.w).detach().item()
-            self.loss_values.append(iteration_loss)
             if verbose:
+                iteration_loss = -torch.sum(self.log_prob(self.target_samples) * self.w).detach().item()
                 pbar.set_postfix_str('loss = ' + str(iteration_loss))
 
 class FullRankGaussianMixtEM(torch.nn.Module):
@@ -90,7 +87,6 @@ class FullRankGaussianMixtEM(torch.nn.Module):
         self.Sigma = ((temp + temp.T)/2).unsqueeze(0).repeat(self.K, 1, 1)
         self.reference= torch.distributions.MultivariateNormal(torch.zeros(self.p), torch.eye(self.p))
         self.w = torch.distributions.Dirichlet(torch.ones(target_samples.shape[0])).sample()
-        self.loss_values = []
 
     def forward(self, x):
         X = x.unsqueeze(-2).repeat(1, self.K, 1)
@@ -153,7 +149,6 @@ class FullRankGaussianMixtEM(torch.nn.Module):
             pbar = range(epochs)
         for t in pbar:
             self.M_step(self.target_samples, self.w)
-            iteration_loss = -torch.sum(self.log_prob(self.target_samples)*self.w).detach().item()
-            self.loss_values.append(iteration_loss)
             if verbose:
+                iteration_loss = -torch.sum(self.log_prob(self.target_samples) * self.w).detach().item()
                 pbar.set_postfix_str('loss = ' + str(iteration_loss))

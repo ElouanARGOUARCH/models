@@ -15,7 +15,6 @@ class TMC(torch.nn.Module):
 
         self.loss_values = []
         self.para_list = list(self.parameters())
-        self.optimizer = torch.optim.Adam(self.para_list, lr=5e-3)
 
     def reference_log_prob(self, z):
         return torch.distributions.MultivariateNormal(torch.zeros(self.p).to(z.device), torch.eye(self.p).to(z.device)).log_prob(z)
@@ -46,20 +45,23 @@ class TMC(torch.nn.Module):
         x = self.T.backward(z)
         return torch.logsumexp(torch.diagonal(self.v.log_prob(x), 0, -2, -1) + self.target_log_prob(x) - self.T.log_det_J(z), dim=-1)
 
-    def train(self, epochs,num_samples):
+    def train(self, epochs,num_samples,lr = 5e-3, weight_decay = 5e-5, verbose = False):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.optimizer = torch.optim.Adam(self.para_list, lr, weight_decay)
         self.to(device)
-
-        pbar = tqdm(range(epochs))
+        if verbose:
+            pbar = tqdm(range(epochs))
+        else:
+            pbar = range(epochs)
         for _ in pbar:
             z = torch.randn([num_samples, self.p]).to(device)
             self.optimizer.zero_grad()
             loss = self.DKL_latent(z)
             loss.backward()
             self.optimizer.step()
-            with torch.no_grad():
-                DKL_observed = self.DKL_observed(z)
-            self.loss_values.append(loss)
-            pbar.set_postfix_str('DKL latent = ' + str(round(loss.item(), 6)) + ' DKL observed = ' + str(
-                round(DKL_observed.item(), 6)) + ' ; device: ' + str(device))
+            if verbose:
+                with torch.no_grad():
+                    DKL_observed = self.DKL_observed(z)
+                pbar.set_postfix_str('DKL latent = ' + str(round(loss.item(), 6)) + ' DKL observed = ' + str(
+                    round(DKL_observed.item(), 6)) + ' ; device: ' + str(device))
         self.to(torch.device('cpu'))

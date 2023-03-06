@@ -17,8 +17,6 @@ class BinaryClassifier(torch.nn.Module):
         network.pop()
         self.logit_r = torch.nn.Sequential(*network)
 
-        self.loss_values = []
-
     def loss(self,label_0_samples,label_1_samples):
         log_sigmoid = torch.nn.LogSigmoid()
         return -torch.mean(log_sigmoid(self.logit_r(label_1_samples)))-torch.mean(log_sigmoid(-self.logit_r(label_0_samples)))
@@ -110,8 +108,10 @@ class KClassifier(torch.nn.Module):
                 loss = self.loss(batch[0].to(device), batch[1].to(device), batch[2].to(device))
                 loss.backward()
                 optimizer.step()
-            with torch.no_grad():
-                iteration_loss = torch.tensor([self.loss(batch[0].to(device), batch[1].to(device)) for _, batch in  enumerate(dataloader)]).sum().item()
             if verbose:
+                with torch.no_grad():
+                    iteration_loss = torch.tensor(
+                        [self.loss(batch[0].to(device), batch[1].to(device), batch[2].to(device)) for _, batch in
+                         enumerate(dataloader)]).sum().item()
                 pbar.set_postfix_str('loss = ' + str(round(iteration_loss,4)) + '; device = ' + str(device))
         self.cpu()

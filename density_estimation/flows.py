@@ -99,7 +99,6 @@ class FlowDensityEstimation(torch.nn.Module):
         self.model = [structure[-1][0](self.p,self.structure[-1][1], q_log_prob= self.reference_log_prob)]
         for i in range(self.N - 2, -1, -1):
             self.model.insert(0, structure[i][0](self.p, structure[i][1], q_log_prob=self.model[0].log_prob))
-        self.loss_values= []
 
     def reference_log_prob(self,z):
         return torch.distributions.MultivariateNormal(self.reference_mean.to(z.device), self.reference_cov.to(z.device)).log_prob(z)
@@ -150,10 +149,10 @@ class FlowDensityEstimation(torch.nn.Module):
                 batch_loss = self.loss(batch[0].to(device),batch[1].to(device))
                 batch_loss.backward()
                 self.optimizer.step()
-            with torch.no_grad():
-                iteration_loss = torch.tensor([self.loss(batch[0].to(device),batch[1].to(device)) for i, batch in enumerate(dataloader)]).sum().item()
-            self.loss_values.append(iteration_loss)
             if verbose:
+                with torch.no_grad():
+                    iteration_loss = torch.tensor([self.loss(batch[0].to(device), batch[1].to(device)) for i, batch in
+                                                   enumerate(dataloader)]).sum().item()
                 pbar.set_postfix_str('loss = ' + str(round(iteration_loss,6)) + ' ; device: ' + str(device))
 
         self.to('cpu')

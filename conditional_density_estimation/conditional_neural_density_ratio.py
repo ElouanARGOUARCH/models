@@ -20,8 +20,6 @@ class NeuralLikelihoodRatio(torch.nn.Module):
         network.pop()
         self.logit_r = torch.nn.Sequential(*network)
 
-        self.loss_values = []
-
     def loss(self, x, theta,w):
         log_sigmoid = torch.nn.LogSigmoid()
         x_tilde = x[torch.randperm(x.shape[0])]
@@ -54,8 +52,8 @@ class NeuralLikelihoodRatio(torch.nn.Module):
                 batch_loss = self.loss(batch[0].to(device), batch[1].to(device), batch[2].to(device))
                 batch_loss.backward()
                 self.optimizer.step()
-            with torch.no_grad():
-                iteration_loss = torch.tensor([self.loss(batch[0].to(device),batch[1].to(device)) for i, batch in enumerate(dataloader)]).sum().item()
-            self.loss_values.append(iteration_loss)
-            pbar.set_postfix_str('loss = ' + str(round(iteration_loss,6)) + '; device =' +str(device))
+            if verbose:
+                with torch.no_grad():
+                    iteration_loss = torch.tensor([self.loss(batch[0].to(device),batch[1].to(device)) for i, batch in enumerate(dataloader)]).sum().item()
+                pbar.set_postfix_str('loss = ' + str(round(iteration_loss,6)) + '; device =' +str(device))
         self.to(torch.device('cpu'))

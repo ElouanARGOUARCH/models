@@ -67,8 +67,6 @@ class ConditionalDIF(torch.nn.Module):
 
         self.T = ConditionalLocationScale(self.K, self.p, self.d, hidden_dimensions)
 
-        self.loss_values = []
-
     def reference_log_prob(self,z):
         return torch.distributions.MultivariateNormal(self.reference_mean.to(z.device), self.reference_cov.to(z.device))
 
@@ -125,9 +123,10 @@ class ConditionalDIF(torch.nn.Module):
                 batch_loss = self.loss(batch[0].to(device), batch[1].to(device), batch[2].to(device))
                 batch_loss.backward()
                 self.optimizer.step()
-            with torch.no_grad():
-                iteration_loss = torch.tensor([self.loss(batch[0].to(device), batch[1].to(device), batch[2].to(device)) for i, batch in enumerate(dataloader)]).sum().item()
-            self.loss_values.append(iteration_loss)
             if verbose:
+                with torch.no_grad():
+                    iteration_loss = torch.tensor(
+                        [self.loss(batch[0].to(device), batch[1].to(device), batch[2].to(device)) for i, batch in
+                         enumerate(dataloader)]).sum().item()
                 pbar.set_postfix_str('loss = ' + str(round(iteration_loss,6)) + ' ; device: ' + str(device))
         self.to(torch.device('cpu'))

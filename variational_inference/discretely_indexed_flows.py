@@ -14,8 +14,6 @@ class DIFSampler(torch.nn.Module):
 
         self.T = LocationScaleFlow(self.K, self.p)
 
-        self.loss_values = []
-
     def reference_log_prob(self, z):
         return torch.distributions.MultivariateNormal(torch.zeros(self.p).to(z.device), torch.eye(self.p).to(z.device)).log_prob(z)
 
@@ -45,23 +43,26 @@ class DIFSampler(torch.nn.Module):
         z = self.T.forward(x)
         return torch.logsumexp(torch.diagonal(self.w.log_prob(z), 0, -2, -1) + self.reference_log_prob(z) + self.T.log_det_J(x), dim=-1)
 
-    def train(self, epochs,num_samples):
+    def train(self, epochs,num_samples,lr = 5e-3, weight_decay = 5e-5, verbose = False):
         self.para_list = list(self.parameters())
-        self.optimizer = torch.optim.Adam(self.para_list, lr=5e-3, weight_decay= 5e-5)
+        self.optimizer = torch.optim.Adam(self.para_list, lr, weight_decay)
 
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
-
-        pbar = tqdm(range(epochs))
+        if verbose:
+            pbar = tqdm(range(epochs))
+        else:
+            pbar = range(epochs)
         for _ in pbar:
             z = torch.randn([num_samples,self.p]).to(device)
             self.optimizer.zero_grad()
             loss = self.DKL_observed(z)
             loss.backward()
             self.optimizer.step()
-            with torch.no_grad():
-                DKL_latent = self.DKL_latent(z)
-            self.loss_values.append(loss)
-            pbar.set_postfix_str('DKL observed = ' + str(round(loss.item(), 6)) + ' DKL Latent = ' + str(
-                round(DKL_latent.item(), 6)) + ' ; device: ' + str(device))
+            if verbose:
+                with torch.no_grad():
+                    DKL_latent = self.DKL_latent(z)
+                self.loss_values.append(loss)
+                pbar.set_postfix_str('DKL observed = ' + str(round(loss.item(), 6)) + ' DKL Latent = ' + str(
+                    round(DKL_latent.item(), 6)) + ' ; device: ' + str(device))
         self.to(torch.device('cpu'))
