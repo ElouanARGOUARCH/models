@@ -2,29 +2,6 @@ import torch
 from tqdm import tqdm
 from density_estimation import SoftmaxWeight
 
-class MultivariateNormalReference(nn.Module):
-    def __init__(self, p):
-        super().__init__()
-        self.p = p
-        self.mean = torch.zeros(self.p)
-        self.cov = torch.eye(self.p)
-        self.distribution = torch.distributions.MultivariateNormal(self.mean, self.cov)
-
-    def estimate_moments(self, samples):
-        self.mean = torch.mean(samples, dim = 0)
-        cov = torch.cov(samples.T)
-        self.cov = (cov + cov.T)/2
-        self.distribution = torch.distributions.MultivariateNormal(self.mean, self.cov)
-
-    def sample(self, num_samples):
-        return self.distribution.sample(num_samples)
-
-    def log_prob(self, z):
-        mean = self.mean.to(z.device)
-        cov = self.cov.to(z.device)
-        self.distribution = torch.distributions.MultivariateNormal(mean,cov)
-        return self.distribution.log_prob(z)
-
 class ConditionalLocationScale(torch.nn.Module):
     def __init__(self, K, p, d, hidden_dimensions):
         super().__init__()
