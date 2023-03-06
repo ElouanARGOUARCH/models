@@ -30,11 +30,14 @@ class TwoCircles(Target):
         self.weights = torch.tensor([.5, .5])
         self.noise = torch.tensor([0.125])
 
-    def sample(self,num_samples):
+    def sample(self,num_samples, joint = False):
         angle = torch.rand(num_samples)*2*math.pi
         cat = torch.distributions.Categorical(self.weights).sample(num_samples)
         x,y = self.means[cat]*torch.cos(angle) + torch.randn_like(angle)*self.noise,self.means[cat]*torch.sin(angle) + torch.randn_like(angle)*self.noise
-        return torch.cat([x.unsqueeze(-1),y.unsqueeze(-1)], dim =-1)
+        if not joint:
+            return torch.cat([x.unsqueeze(-1),y.unsqueeze(-1)], dim =-1)
+        else:
+            return torch.cat([x.unsqueeze(-1), y.unsqueeze(-1)], dim=-1), cat
 
     def log_prob(self,x):
         r = torch.norm(x, dim=-1).unsqueeze(-1)
