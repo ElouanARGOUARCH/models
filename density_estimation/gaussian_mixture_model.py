@@ -72,8 +72,8 @@ class DiagGaussianMixtEM(torch.nn.Module):
         for t in pbar:
             self.M_step(self.target_samples, self.w)
             if verbose:
-                iteration_loss = -torch.sum(self.log_prob(self.target_samples) * self.w).detach().item()
-                pbar.set_postfix_str('loss = ' + str(iteration_loss))
+                log_prob = torch.sum(self.log_prob(self.target_samples) * self.w).detach().item()
+                pbar.set_postfix_str('loss = ' + str(log_prob))
 
 class FullRankGaussianMixtEM(torch.nn.Module):
     def __init__(self, target_samples, K):
@@ -150,5 +150,5 @@ class FullRankGaussianMixtEM(torch.nn.Module):
         for t in pbar:
             self.M_step(self.target_samples, self.w)
             if verbose:
-                iteration_loss = -torch.sum(self.log_prob(self.target_samples) * self.w).detach().item()
-                pbar.set_postfix_str('loss = ' + str(iteration_loss))
+                log_prob = torch.sum(self.log_prob(self.target_samples) * self.w).detach().item()
+                pbar.set_postfix_str('log_prob = ' + str(log_prob))

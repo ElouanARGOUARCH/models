@@ -21,7 +21,7 @@ class regressor(torch.nn.Module):
     def loss(self, input, output, w):
         return torch.sum(w * torch.norm(self.f(input)-output))
 
-    def train(self, epochs, batch_size,verbose = False, lr = 5e-3, weight_decay=5e-6):
+    def train(self, epochs, batch_size = None,verbose = False, lr = 5e-3, weight_decay=5e-6):
         if batch_size is None:
             batch_size = self.D_input.shape[0]
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay = weight_decay)
