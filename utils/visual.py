@@ -68,8 +68,7 @@ def plot_1d_unormalized_values(values,tt):
     x_min, x_max, bins = tt[0], tt[-1], tt.shape[0]
     plt.plot(tt, values*bins/(torch.sum(values)*(x_max - x_min)))
 
-def plot_2d_function(f,range = [[-10,10],[-10,10]], bins = [50,50], alpha = 0.7, figsize = (10,10)):
-    fig = plt.figure(figsize=figsize)
+def plot_2d_function(f,range = [[-10,10],[-10,10]], bins = [50,50], alpha = 0.7):
     with torch.no_grad():
         tt_x = torch.linspace(range[0][0], range[0][1], bins[0])
         tt_y = torch.linspace(range[1][0],range[1][1], bins[1])
@@ -78,8 +77,7 @@ def plot_2d_function(f,range = [[-10,10],[-10,10]], bins = [50,50], alpha = 0.7,
             plt.pcolormesh(tt_x,tt_y,f(mesh).numpy().reshape(bins[0],bins[1]).T, cmap = matplotlib.cm.get_cmap('viridis'), alpha = alpha, lw = 0)
     plt.show()
 
-def plot_likelihood_function(log_likelihood, range = [[-10,10],[-10,10]], bins = [50,50], levels = 2 , alpha = 0.7, figsize = (10,10)):
-    fig = plt.figure(figsize=figsize)
+def plot_likelihood_function(log_likelihood, range = [[-10,10],[-10,10]], bins = [50,50], levels = 2 , alpha = 0.7):
     with torch.no_grad():
         tt_x = torch.linspace(range[0][0], range[0][1], bins[0])
         tt_y = torch.linspace(range[1][0],range[1][1], bins[1])
@@ -89,15 +87,13 @@ def plot_likelihood_function(log_likelihood, range = [[-10,10],[-10,10]], bins =
             plt.contourf(tt_x,tt_y,torch.exp(log_likelihood(tt_y_plus, tt_x_plus)), levels = levels, cmap = matplotlib.cm.get_cmap('viridis'), alpha = alpha, lw = 0)
     plt.show()
 
-def plot_2d_points(samples, figsize = (10,10)):
+def plot_2d_points(samples):
     assert samples.shape[-1] == 2, 'Requires 2-dimensional points'
-    fig = plt.figure(figsize=figsize)
-    plt.scatter(samples[:,0], samples[:,1])
+    plt.scatter(samples[:,0].numpy(), samples[:,1].numpy())
     plt.show()
 
-def plot_image_2d_points(samples, bins=(200, 200), range=None, figsize=(10,10)):
+def plot_image_2d_points(samples, bins=(200, 200), range=None):
     assert samples.shape[-1] == 2, 'Requires 2-dimensional points'
-    fig = plt.figure(figsize=figsize)
     hist, x_edges, y_edges = numpy.histogram2d(samples[:, 0].numpy(), samples[:, 1].numpy(), bins,
                                                                 range)
     plt.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
