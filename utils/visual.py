@@ -98,7 +98,7 @@ def plot_2d_points(samples, figsize = (10,10)):
 def plot_image_2d_points(samples, bins=(200, 200), range=None, figsize=(10,10)):
     assert samples.shape[-1] == 2, 'Requires 2-dimensional points'
     fig = plt.figure(figsize=figsize)
-    hist, x_edges, y_edges = numpy.histogram2d(samples[:, 1].numpy(), samples[:, 0].numpy(), bins,
+    hist, x_edges, y_edges = numpy.histogram2d(samples[:, 0].numpy(), samples[:, 1].numpy(), bins,
                                                                 range)
     plt.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
     plt.imshow(torch.tensor(hist),
