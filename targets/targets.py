@@ -37,7 +37,7 @@ class TwoCircles(Target):
         if not joint:
             return torch.cat([x.unsqueeze(-1),y.unsqueeze(-1)], dim =-1)
         else:
-            return torch.cat([x.unsqueeze(-1), y.unsqueeze(-1)], dim=-1), cat
+            return torch.cat([x.unsqueeze(-1),y.unsqueeze(-1)], dim =-1), cat
 
     def log_prob(self,x):
         r = torch.norm(x, dim=-1).unsqueeze(-1)
