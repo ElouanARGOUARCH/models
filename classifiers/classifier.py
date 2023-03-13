@@ -1,72 +1,7 @@
 import torch
 from tqdm import tqdm
 
-class BinaryClassifier(torch.nn.Module):
-    def __init__(self, label_0_samples, label_1_samples, hidden_dims):
-        super().__init__()
-        self.label_0_samples = label_0_samples
-        self.N_0 = label_0_samples.shape[0]
-        self.label_1_samples = label_1_samples
-        self.N_1 = label_0_samples.shape[0]
-        self.p = label_0_samples.shape[-1]
-
-        network_dimensions = [self.p] + hidden_dims + [1]
-        network = []
-        for h0, h1 in zip(network_dimensions, network_dimensions[1:]):
-            network.extend([torch.nn.Linear(h0, h1), torch.nn.SiLU(), ])
-        network.pop()
-        self.logit_r = torch.nn.Sequential(*network)
-
-    def loss(self,label_0_samples,label_1_samples):
-        log_sigmoid = torch.nn.LogSigmoid()
-        return -torch.mean(log_sigmoid(self.logit_r(label_1_samples)))-torch.mean(log_sigmoid(-self.logit_r(label_0_samples)))
-
-    def train(self, epochs, lr = 5e-3):
-        self.para_list = list(self.parameters())
-
-        self.optimizer = torch.optim.Adam(self.para_list, lr)
-
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.to(device)
-        pbar = tqdm(range(epochs))
-        for t in pbar:
-            self.optimizer.zero_grad()
-            loss = self.loss(self.label_0_samples.to(device),self.label_1_samples.to(device))
-            loss.backward()
-            self.optimizer.step()
-            self.loss_values.append(loss)
-            pbar.set_postfix_str('loss = ' + str(round(loss.item(),6))+ '; device = ' + str(device))
-        self.to(torch.device('cpu'))
-
-    def train_batch(self, epochs, batch_size, lr = 5e-3):
-        assert self.label_0_samples.shape[0]==self.label_1_samples.shape[0], 'mismatch in number samples'
-        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-        if batch_size is None:
-            batch_size = self.label_1_samples.shape[0]
-        dataset_0 = torch.utils.data.TensorDataset(self.label_0_samples)
-        dataset_1 = torch.utils.data.TensorDataset(self.label_1_samples)
-
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.to(device)
-
-        pbar = tqdm(range(epochs))
-        for t in pbar:
-            dataloader_0 = torch.utils.data.DataLoader(dataset_0, batch_size=batch_size, shuffle=True)
-            dataloader_1 = torch.utils.data.DataLoader(dataset_1, batch_size=batch_size, shuffle=True)
-            for batch_0, batch_1 in zip(dataloader_0, dataloader_1):
-                label_0_batch = batch_0[0].to(device)
-                label_1_batch = batch_1[0].to(device)
-                optimizer.zero_grad()
-                batch_loss = self.loss(label_1_batch,label_0_batch)
-                batch_loss.backward()
-                optimizer.step()
-            with torch.no_grad():
-                iteration_loss = torch.tensor([self.loss(batch_1[0].to(device),batch_0[0].to(device)) for batch_0, batch_1 in zip(dataloader_0, dataloader_1)]).mean().item()
-            self.loss_values.append(iteration_loss)
-            pbar.set_postfix_str('loss = ' + str(round(iteration_loss,6)) + '; device = ' + str(device))
-        self.to(torch.device('cpu'))
-
-class KClassifier(torch.nn.Module):
+class Classifier(torch.nn.Module):
     def __init__(self, K, samples, labels, hidden_dimensions =[]):
         super().__init__()
         self.K = K
