@@ -29,7 +29,7 @@ class regressor(torch.nn.Module):
             batch_size = self.samples.shape[0]
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
-        dataset = torch.utils.data.TensorDataset(self.D_input, self.D_output, self.w)
+        dataset = torch.utils.data.TensorDataset(self.D_input.to(device), self.D_output.to(device), self.w.to(device))
 
         if verbose:
             pbar = tqdm(range(epochs))
@@ -39,11 +39,11 @@ class regressor(torch.nn.Module):
             dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
             for _,batch in enumerate(dataloader):
                 optimizer.zero_grad()
-                loss = self.loss(batch[0].to(device), batch[1].to(device), batch[2].to(device))
+                loss = self.loss(batch[0], batch[1], batch[2])
                 loss.backward()
                 optimizer.step()
             with torch.no_grad():
-                iteration_loss = torch.tensor([self.loss(batch[0].to(device), batch[1].to(device), batch[2].to(device)) for _, batch in  enumerate(dataloader)]).sum().item()
+                iteration_loss = torch.tensor([self.loss(batch[0], batch[1], batch[2]) for _,batch in  enumerate(dataloader)]).sum().item()
             if verbose:
                 pbar.set_postfix_str('loss = ' + str(round(iteration_loss,4)) + '; device = ' + str(device))
         self.cpu()

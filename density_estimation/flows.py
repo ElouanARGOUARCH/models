@@ -137,7 +137,7 @@ class FlowDensityEstimation(torch.nn.Module):
 
         if batch_size is None:
             batch_size = self.target_samples.shape[0]
-        dataset = torch.utils.data.TensorDataset(self.target_samples, self.w)
+        dataset = torch.utils.data.TensorDataset(self.target_samples.to(device), self.w.to(device))
         if verbose:
             pbar = tqdm(range(epochs))
         else:
@@ -146,12 +146,12 @@ class FlowDensityEstimation(torch.nn.Module):
             dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
             for i, batch in enumerate(dataloader):
                 self.optimizer.zero_grad()
-                batch_loss = self.loss(batch[0].to(device),batch[1].to(device))
+                batch_loss = self.loss(batch[0],batch[1])
                 batch_loss.backward()
                 self.optimizer.step()
             if verbose:
                 with torch.no_grad():
-                    iteration_loss = torch.tensor([self.loss(batch[0].to(device), batch[1].to(device)) for i, batch in
+                    iteration_loss = torch.tensor([self.loss(batch[0], batch[1]) for i, batch in
                                                    enumerate(dataloader)]).sum().item()
                 pbar.set_postfix_str('loss = ' + str(round(iteration_loss,6)) + ' ; device: ' + str(device))
 

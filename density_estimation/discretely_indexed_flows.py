@@ -54,7 +54,7 @@ class DIFDensityEstimator(torch.nn.Module):
         _ = torch.cov(self.target_samples.T)
         self.reference_cov = (_.T + _)/2
 
-        self.Weight = SoftmaxWeight(self.K, self.p, hidden_dims)
+        self.W = SoftmaxWeight(self.K, self.p, hidden_dims)
 
         self.T = LocationScaleFlow(self.K, self.p)
         self.T.m = torch.nn.Parameter(self.target_samples[torch.randint(low= 0, high = self.target_samples.shape[0],size = [self.K])])
@@ -68,7 +68,7 @@ class DIFDensityEstimator(torch.nn.Module):
 
     def compute_log_v(self,x):
         z = self.T.forward(x)
-        log_v = self.reference_log_prob(z) + torch.diagonal(self.Weight.log_prob(z), 0, -2, -1) + self.T.log_det_J(x)
+        log_v = self.reference_log_prob(z) + torch.diagonal(self.W.log_prob(z), 0, -2, -1) + self.T.log_det_J(x)
         return log_v - torch.logsumexp(log_v, dim = -1, keepdim= True)
 
     def sample_latent(self,x):
@@ -78,17 +78,17 @@ class DIFDensityEstimator(torch.nn.Module):
 
     def log_prob(self, x):
         z = self.T.forward(x)
-        return torch.logsumexp(self.reference_log_prob(z) + torch.diagonal(self.Weight.log_prob(z),0,-2,-1) + self.T.log_det_J(x),dim=-1)
+        return torch.logsumexp(self.reference_log_prob(z) + torch.diagonal(self.W.log_prob(z),0,-2,-1) + self.T.log_det_J(x),dim=-1)
 
     def sample(self, num_samples):
         z = torch.distributions.MultivariateNormal(self.reference_mean, self.reference_cov).sample(num_samples)
         x = self.T.backward(z)
-        pick = torch.distributions.Categorical(torch.exp(self.Weight.log_prob(z))).sample()
+        pick = torch.distributions.Categorical(torch.exp(self.W.log_prob(z))).sample()
         return x[range(x.shape[0]), pick, :]
 
     def loss(self, x,w):
         z = self.T.forward(x)
-        return -torch.sum(w*(torch.logsumexp(self.reference_log_prob(z) + torch.diagonal(self.Weight.log_prob(z), 0, -2, -1) + self.T.log_det_J(x), dim=-1)))
+        return -torch.sum(w*(torch.logsumexp(self.reference_log_prob(z) + torch.diagonal(self.W.log_prob(z), 0, -2, -1) + self.T.log_det_J(x), dim=-1)))
 
     def train(self, epochs, batch_size = None, lr = 5e-3, weight_decay = 5e-5, verbose = False):
 
@@ -97,10 +97,10 @@ class DIFDensityEstimator(torch.nn.Module):
 
         if batch_size is None:
             batch_size = self.target_samples.shape[0]
-        dataset = torch.utils.data.TensorDataset(self.target_samples, self.w)
-
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
+        dataset = torch.utils.data.TensorDataset(self.target_samples.to(device), self.w.to(device))
+
         if verbose:
             pbar = tqdm(range(epochs))
         else:
@@ -109,11 +109,11 @@ class DIFDensityEstimator(torch.nn.Module):
             dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
             for i, batch in enumerate(dataloader):
                 self.optimizer.zero_grad()
-                batch_loss = self.loss(batch[0].to(device),batch[1].to(device))
+                batch_loss = self.loss(batch[0],batch[1])
                 batch_loss.backward()
                 self.optimizer.step()
             with torch.no_grad():
-                iteration_loss = torch.tensor([self.loss(batch[0].to(device),batch[1].to(device)) for i, batch in enumerate(dataloader)]).sum().item()
+                iteration_loss = torch.tensor([self.loss(batch[0],batch[1]) for i, batch in enumerate(dataloader)]).sum().item()
             self.loss_values.append(iteration_loss)
             if verbose:
                 pbar.set_postfix_str('loss = ' + str(round(iteration_loss,6)) + ' ; device: ' + str(device))

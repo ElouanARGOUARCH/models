@@ -36,10 +36,11 @@ class NeuralLikelihoodRatio(torch.nn.Module):
         self.optimizer = torch.optim.Adam(self.para_list, lr)
         if batch_size is None:
             batch_size = self.D_x.shape[0]
-        dataset = torch.utils.data.TensorDataset(self.D_x, self.D_theta, self.w)
 
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
+
+        dataset = torch.utils.data.TensorDataset(self.D_x.to(device), self.D_theta.to(device), self.w.to(device))
 
         if verbose:
             pbar = tqdm(range(epochs))
@@ -49,11 +50,11 @@ class NeuralLikelihoodRatio(torch.nn.Module):
             dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
             for i, batch in enumerate(dataloader):
                 self.optimizer.zero_grad()
-                batch_loss = self.loss(batch[0].to(device), batch[1].to(device), batch[2].to(device))
+                batch_loss = self.loss(batch[0], batch[1], batch[2])
                 batch_loss.backward()
                 self.optimizer.step()
             if verbose:
                 with torch.no_grad():
-                    iteration_loss = torch.tensor([self.loss(batch[0].to(device),batch[1].to(device)) for i, batch in enumerate(dataloader)]).sum().item()
+                    iteration_loss = torch.tensor([self.loss(batch[0],batch[1],batch[2]) for i, batch in enumerate(dataloader)]).sum().item()
                 pbar.set_postfix_str('loss = ' + str(round(iteration_loss,6)) + '; device =' +str(device))
         self.to(torch.device('cpu'))
