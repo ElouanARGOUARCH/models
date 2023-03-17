@@ -62,6 +62,7 @@ class ConditionalDIF(torch.nn.Module):
         self.reference_mean = torch.mean(D_x, dim = 0)
         _ = torch.cov(D_x.T)
         self.reference_cov = (_.T + _)/2
+        self.reference = torch.distributions.MultivariateNormal(self.reference_mean, self.reference_cov)
 
         self.W = SoftmaxWeight(self.K, self.p+self.d, hidden_dimensions)
 
