@@ -60,7 +60,7 @@ class ConditionalDIF(torch.nn.Module):
         self.w = torch.distributions.Dirichlet(torch.ones(self.D_x.shape[0])).sample()
 
         self.reference_mean = torch.mean(D_x, dim = 0)
-        _ = torch.cov(D_x.T,dim=0)
+        _ = torch.cov(D_x.T)
         self.reference_cov = (_.T + _)/2
 
         self.W = SoftmaxWeight(self.K, self.p+self.d, hidden_dimensions)
