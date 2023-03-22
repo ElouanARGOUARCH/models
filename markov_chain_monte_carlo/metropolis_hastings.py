@@ -30,7 +30,7 @@ class IndependentMetropolisHastings(torch.nn.Module):
             pbar = range(number_steps)
         for _ in pbar:
             proposed_x = self.proposal_distribution.sample([self.number_chains])
-            x,mask = self.independant_metropolis_step(x,proposed_x)
+            x,mask = self.independent_metropolis_step(x,proposed_x)
             if verbose:
                 pbar.set_postfix_str('acceptance = ' + str(torch.mean(mask * 1.)))
         return x
