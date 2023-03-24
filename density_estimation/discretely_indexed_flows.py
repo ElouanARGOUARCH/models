@@ -87,8 +87,7 @@ class DIFDensityEstimator(torch.nn.Module):
         return x[range(x.shape[0]), pick, :]
 
     def loss(self, x,w):
-        z = self.T.forward(x)
-        return -torch.sum(w*(torch.logsumexp(self.reference_log_prob(z) + torch.diagonal(self.W.log_prob(z), 0, -2, -1) + self.T.log_det_J(x), dim=-1)))
+        return -torch.sum(w*self.log_prob(self, x))
 
     def train(self, epochs, batch_size = None, lr = 5e-3, weight_decay = 5e-5, verbose = False):
 

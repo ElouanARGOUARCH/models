@@ -81,3 +81,44 @@ class Orbits(Target):
         mvn_target = torch.distributions.MultivariateNormal(means_target.to(x.device), covs_target.to(x.device))
         cat = torch.distributions.Categorical(torch.exp(weights_target) / torch.sum(torch.exp(weights_target)))
         return torch.distributions.MixtureSameFamily(cat, mvn_target).log_prob(x)
+
+class Banana(Target):
+    def __init__(self):
+        super().__init__()
+        var = 2
+        dim = 50
+        self.even = torch.arange(0, dim, 2)
+        self.odd = torch.arange(1, dim, 2)
+        self.mvn = torch.distributions.MultivariateNormal(torch.zeros(dim), var * torch.eye(dim))
+
+    def transform(self, x):
+        z = x.clone()
+        z[...,self.odd] += z[...,self.even]**2
+        return z
+
+    def sample(self, num_samples):
+        return self.transform(self.mvn.sample([num_samples]))
+
+    def log_prob(self, samples):
+        return self.mvn.log_prob(self.inv_transform(samples))
+
+class Funnel(Target):
+    def __init__(self):
+        super().__init__()
+        self.a = torch.tensor(1.)
+        self.b = torch.tensor(0.5)
+        self.dim = 20
+
+        self.distrib_x1 = torch.distributions.Normal(torch.zeros(1), torch.tensor(self.a))
+
+    def sample(self, num_samples):
+        x1 = self.distrib_x1.sample([num_samples])
+
+        rem = torch.randn((num_samples,) + (self.dim - 1,)) * (self.b * x1).exp()
+
+        return torch.cat([x1, rem], -1)
+    def log_prob(self, x):
+        log_probx1 = self.distrib_x1.log_prob(x[..., 0].unsqueeze(1))
+        logprob_rem = (- x[..., 1:] ** 2 * (-2 * self.b * x[..., 0].unsqueeze(-1)).exp() - 2 * self.b * x[:, 0].unsqueeze(-1) - torch.tensor(2 * math.pi).log()) / 2
+        logprob_rem = logprob_rem.sum(-1)
+        return (log_probx1 + logprob_rem.unsqueeze(-1)).flatten()

@@ -90,7 +90,7 @@ class ConditionalDIF(torch.nn.Module):
         desired_size.insert(-1, self.K)
         theta_unsqueezed = theta.unsqueeze(-2).expand(desired_size)
         z = self.T.forward(x, theta)
-        return torch.logsumexp(self.reference.log_prob(z) + torch.diagonal(self.W.log_prob(torch.cat([z, theta_unsqueezed], dim = -1)), 0, -2, -1)+ self.T.log_det_J(x, theta),dim=-1)
+        return torch.logsumexp(self.reference_log_prob(z) + torch.diagonal(self.W.log_prob(torch.cat([z, theta_unsqueezed], dim = -1)), 0, -2, -1)+ self.T.log_det_J(x, theta),dim=-1)
 
     def sample(self, theta):
         z = torch.distributions.MultivariateNormal(self.reference_mean, self.reference_cov).sample(theta.shape[:-1])
@@ -99,9 +99,7 @@ class ConditionalDIF(torch.nn.Module):
         return x[range(x.shape[0]), pick, :]
 
     def loss(self, x, theta, w):
-        batch_theta_unsqueezed = theta.unsqueeze(-2).repeat(1, self.K, 1)
-        z = self.T.forward(x, theta)
-        return -torch.sum(w*torch.logsumexp(self.reference.log_prob(z) + torch.diagonal(self.W.log_prob(torch.cat([z, batch_theta_unsqueezed], dim = -1)), 0, -2, -1) + self.T.log_det_J(x, theta), dim=-1))
+        return -torch.sum(w*self.log_prob(x,theta))
 
     def train(self, epochs, batch_size = None,lr = 5e-3, weight_decay = 5e-5,verbose = False):
         self.para_list = list(self.parameters())
