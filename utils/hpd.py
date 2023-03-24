@@ -61,7 +61,7 @@ def compute_expected_coverage(reference_samples, tested_samples,grid = 50):
 
 def plot_expected_coverage_1d_samples(reference_samples, tested_samples, label = None, figsize = (5,5)):
     assert reference_samples.shape[-1] ==1,'Dimension >= 1 not supported'
-    assert tested_samples.shape[-1] == 1, 'Dimension >= 1 not supported'
+    assert tested_samples.shape[-1] == 1,'Dimension >= 1 not supported'
     to_plot, range = compute_expected_coverage(reference_samples, tested_samples)
     fig = plt.figure(figsize=figsize)
     plt.plot(range.numpy(), to_plot.numpy(), label = label)
