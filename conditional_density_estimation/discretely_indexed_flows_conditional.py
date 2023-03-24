@@ -69,7 +69,7 @@ class ConditionalDIF(torch.nn.Module):
         self.T = ConditionalLocationScale(self.K, self.p, self.d, hidden_dimensions)
 
     def reference_log_prob(self,z):
-        return torch.distributions.MultivariateNormal(self.reference_mean.to(z.device), self.reference_cov.to(z.device))
+        return torch.distributions.MultivariateNormal(self.reference_mean.to(z.device), self.reference_cov.to(z.device)).log_prob(z)
 
     def compute_log_v(self,x, theta):
         assert x.shape[:-1] == theta.shape[:-1], 'wrong shapes'
