@@ -4,28 +4,12 @@ import torch
 import matplotlib.pyplot as plt
 
 def highest_density_region(sample, alpha=0.05, roundto=2):
-    """Calculate highest posterior density (HPD) of array for given alpha.
-    The HPD is the minimum width Bayesian credible interval (BCI).
-    The function works for multimodal distributions, returning more than one mode
-    Parameters
-    ----------
-
-    sample : Numpy array or python list
-        An array containing MCMC samples
-    alpha : float
-        Desired probability of type I error (defaults to 0.05)
-    roundto: integer
-        Number of digits after the decimal point for the results
-    Returns
-    ----------
-    hpd: array with the lower
-    """
     temp = np.asarray(sample)
     temp = temp[~np.isnan(temp)]
     l = np.min(temp)
     u = np.max(temp)
     density = scipy.stats.gaussian_kde(temp,'scott')
-    x = np.linspace(l, u, 2000)
+    x = np.linspace(l, u, 500)
     y = density.evaluate(x)
     xy_zipped = zip(x, y / np.sum(y))
     xy = sorted(xy_zipped, key=lambda x: x[1], reverse=True)
