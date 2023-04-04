@@ -58,19 +58,20 @@ purple_cmap = ListedColormap(purple[::-1])
 
 purple_color = "#660066"
 
-def plot_1d_unormalized_function(f,range = [-10,10], bins=100, figsize = (5,10)):
+def plot_1d_unormalized_function(f,range = [-10,10], bins=100, figsize = (5,10), show = True):
     tt =torch.linspace(range[0],range[1],bins)
     with torch.no_grad():
         values = f(tt)
-    plot_1d_unormalized_values(values,tt, figsize = figsize)
+    plot_1d_unormalized_values(values,tt, figsize = figsize, show = show)
 
-def plot_1d_unormalized_values(values,tt, figsize = (5,10)):
+def plot_1d_unormalized_values(values,tt, figsize = (5,10), show = True):
     x_min, x_max, bins = tt[0], tt[-1], tt.shape[0]
     fig = plt.figure(figsize = figsize)
     plt.plot(tt, values*bins/(torch.sum(values)*(x_max - x_min)))
-    plt.show()
+    if show:
+        plt.show()
 
-def plot_2d_function(f,range = [[-10,10],[-10,10]], bins = [50,50], alpha = 0.7, figsize = (10,10)):
+def plot_2d_function(f,range = [[-10,10],[-10,10]], bins = [50,50], alpha = 0.7, figsize = (10,10),show = True):
     fig = plt.figure(figsize = figsize)
     with torch.no_grad():
         tt_x = torch.linspace(range[0][0], range[0][1], bins[0])
@@ -78,9 +79,10 @@ def plot_2d_function(f,range = [[-10,10],[-10,10]], bins = [50,50], alpha = 0.7,
         mesh = torch.cartesian_prod(tt_x, tt_y)
         with torch.no_grad():
             plt.pcolormesh(tt_x,tt_y,f(mesh).numpy().reshape(bins[0],bins[1]).T, cmap = matplotlib.cm.get_cmap('viridis'), alpha = alpha, lw = 0)
-    plt.show()
+    if show:
+        plt.show()
 
-def plot_likelihood_function(log_likelihood, range = [[-10,10],[-10,10]], bins = [50,50], levels = 2 , alpha = 0.7, figsize = (5,10)):
+def plot_likelihood_function(log_likelihood, range = [[-10,10],[-10,10]], bins = [50,50], levels = 2 , alpha = 0.7, figsize = (5,10), show = True):
     fig = plt.figure(figsize = figsize)
     with torch.no_grad():
         tt_x = torch.linspace(range[0][0], range[0][1], bins[0])
@@ -89,23 +91,25 @@ def plot_likelihood_function(log_likelihood, range = [[-10,10],[-10,10]], bins =
         tt_y_plus = tt_y.unsqueeze(1).unsqueeze(-1).repeat(1,tt_x.shape[0], 1)
         with torch.no_grad():
             plt.contourf(tt_x,tt_y,torch.exp(log_likelihood(tt_y_plus, tt_x_plus)), levels = levels, cmap = matplotlib.cm.get_cmap('viridis'), alpha = alpha, lw = 0)
-    plt.show()
+    if show:
+        plt.show()
 
-def plot_2d_points(samples, figsize = (10,10)):
+def plot_2d_points(samples, figsize = (10,10),show = True):
     fig = plt.figure(figsize = figsize)
     assert samples.shape[-1] == 2, 'Requires 2-dimensional points'
     plt.scatter(samples[:,0].numpy(), samples[:,1].numpy())
-    plt.show()
+    if show:
+        plt.show()
 
-def plot_image_2d_points(samples, bins=(200, 200), range=None, alpha = 1.,figsize = (12,8)):
+def plot_image_2d_points(samples, bins=(200, 200), range=None, alpha = 1.,figsize = (12,8), show = True):
     fig = plt.figure(figsize = figsize)
     assert samples.shape[-1] == 2, 'Requires 2-dimensional points'
     hist, y_edges, x_edges = numpy.histogram2d(samples[:, 1].numpy(), samples[:, 0].numpy(), bins,range)
     plt.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
     plt.pcolormesh(x_edges, y_edges, hist, cmap=matplotlib.cm.get_cmap('viridis'),
                    alpha=alpha, lw=0)
-
-    plt.show()
+    if show:
+        plt.show()
 
 def flow_visual(flow_to_visualize):
     num_samples = 5000
