@@ -58,13 +58,13 @@ purple_cmap = ListedColormap(purple[::-1])
 
 purple_color = "#660066"
 
-def plot_1d_unormalized_function(f,range = [-10,10], bins=100, figsize = (5,10), show = True):
+def plot_1d_unormalized_function(f,range = [-10,10], bins=100, figsize = (10,6), show = True):
     tt =torch.linspace(range[0],range[1],bins)
     with torch.no_grad():
         values = f(tt)
     plot_1d_unormalized_values(values,tt, figsize = figsize, show = show)
 
-def plot_1d_unormalized_values(values,tt, figsize = (5,10), show = True):
+def plot_1d_unormalized_values(values,tt, figsize = (10,6), show = True):
     x_min, x_max, bins = tt[0], tt[-1], tt.shape[0]
     fig = plt.figure(figsize = figsize)
     plt.plot(tt, values*bins/(torch.sum(values)*(x_max - x_min)))
@@ -82,7 +82,7 @@ def plot_2d_function(f,range = [[-10,10],[-10,10]], bins = [50,50], alpha = 0.7,
     if show:
         plt.show()
 
-def plot_likelihood_function(log_likelihood, range = [[-10,10],[-10,10]], bins = [50,50], levels = 2 , alpha = 0.7, figsize = (5,10), show = True):
+def plot_likelihood_function(log_likelihood, range = [[-10,10],[-10,10]], bins = [50,50], levels = 2 , alpha = 0.7, figsize = (10,6), show = True):
     fig = plt.figure(figsize = figsize)
     with torch.no_grad():
         tt_x = torch.linspace(range[0][0], range[0][1], bins[0])
