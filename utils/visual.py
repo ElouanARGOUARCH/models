@@ -94,8 +94,7 @@ def plot_likelihood_function(log_likelihood, range = [[-10,10],[-10,10]], bins =
     if show:
         plt.show()
 
-def plot_2d_points(samples, figsize = (10,10),show = True):
-    fig = plt.figure(figsize = figsize)
+def plot_2d_points(samples,show = True):
     assert samples.shape[-1] == 2, 'Requires 2-dimensional points'
     plt.scatter(samples[:,0].numpy(), samples[:,1].numpy())
     if show:
