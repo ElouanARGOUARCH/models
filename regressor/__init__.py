@@ -1,2 +1,3 @@
 from .regressor import *
-from .bayesian_linear_regression import *
+from .discriminative_regression import *
+from .generative_regression import *
