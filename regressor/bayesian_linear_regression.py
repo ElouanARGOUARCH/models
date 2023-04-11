@@ -171,6 +171,7 @@ class generative_bayesian_affine_regression_known_variance:
         self.sigma2_X = sigma2_X
         self.mu_beta = mu_beta
         self.Sigma_beta = Sigma_beta
+        #small change
 
     def compute_x0_given_y0_beta_moments(self, y0, beta):
         sigma_x0_given_y0_beta = 1 / (
