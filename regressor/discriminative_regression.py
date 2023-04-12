@@ -120,7 +120,7 @@ class discriminative_bayesian_affine_regression:
                 current_label = torch.distributions.Normal(mu_xj_given_yj_beta_sigma2,
                                                            torch.sqrt(sigma2_xj_given_yj_beta_sigma2)).sample()
                 current_labels.append(current_label.repeat(y.shape[0]))
-            if torch.flatten(Y).shape == 0:
+            if torch.flatten(Y).shape[0] > 0:
                 DXplus = torch.cat([DX, current_x0.repeat(y0.shape[0]), torch.cat(current_labels)], dim=0)
             else:
                 DXplus = torch.cat([DX, current_x0.repeat(y0.shape[0])])
