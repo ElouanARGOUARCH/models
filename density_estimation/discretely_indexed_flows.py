@@ -113,7 +113,6 @@ class DIFDensityEstimator(torch.nn.Module):
                 self.optimizer.step()
             with torch.no_grad():
                 iteration_loss = torch.tensor([self.loss(batch[0],batch[1]) for i, batch in enumerate(dataloader)]).sum().item()
-            self.loss_values.append(iteration_loss)
             if verbose:
                 pbar.set_postfix_str('loss = ' + str(round(iteration_loss,6)) + ' ; device: ' + str(device))
         self.to(torch.device('cpu'))

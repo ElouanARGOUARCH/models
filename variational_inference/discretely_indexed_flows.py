@@ -62,7 +62,6 @@ class DIFSampler(torch.nn.Module):
             if verbose:
                 with torch.no_grad():
                     DKL_latent = self.DKL_latent(z)
-                self.loss_values.append(loss)
                 pbar.set_postfix_str('DKL observed = ' + str(round(loss.item(), 6)) + ' DKL Latent = ' + str(
                     round(DKL_latent.item(), 6)) + ' ; device: ' + str(device))
         self.to(torch.device('cpu'))
