@@ -1,2 +1,2 @@
-from pca import *
-from logit import *
+from .pca import *
+from .logit import *
