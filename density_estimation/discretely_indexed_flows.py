@@ -1,5 +1,6 @@
 import torch
 from tqdm import tqdm
+from density_estimation.gaussian_mixture_model import DiagGaussianMixtEM
 
 class SoftmaxWeight(torch.nn.Module):
     def __init__(self, K, p, hidden_dims =[]):
@@ -59,6 +60,17 @@ class DIFDensityEstimator(torch.nn.Module):
         self.T = LocationScaleFlow(self.K, self.p)
         self.T.m = torch.nn.Parameter(self.target_samples[torch.randint(low= 0, high = self.target_samples.shape[0],size = [self.K])])
         self.T.log_s = torch.nn.Parameter(torch.log(torch.var(self.target_samples, dim = 0).unsqueeze(0).repeat(self.K,1) + 1e-6 *torch.ones(self.K, self.p))/2)
+
+    def initialize_with_EM(self, epochs, verbose = False):
+        em = DiagGaussianMixtEM(self.target_samples,self.K)
+        em.train(epochs, verbose)
+        self.T.m = torch.nn.Parameter(em.m)
+        self.T.log_s = torch.nn.Parameter(em.log_s)
+        self.W.f[-1].weight = torch.nn.Parameter(torch.zeros(self.K,self.W.network_dimensions[-2]))
+        self.W.f[-1].bias = torch.nn.Parameter(em.log_pi)
+        self.reference_mean = torch.zeros(self.p)
+        self.reference_cov = torch.eye(self.p)
+
 
     def reference_log_prob(self,z):
         return torch.distributions.MultivariateNormal(self.reference_mean.to(z.device), self.reference_cov.to(z.device)).log_prob(z)
