@@ -71,8 +71,7 @@ def plot_1d_unormalized_values(tt,values, figsize = (10,6), show = True, label =
     if show:
         plt.show()
 
-def plot_2d_function(f,range = [[-10,10],[-10,10]], bins = [50,50], alpha = 0.7, figsize = (10,10),show = True):
-    fig = plt.figure(figsize = figsize)
+def plot_2d_function(f,range = [[-10,10],[-10,10]], bins = [50,50], alpha = 0.7,show = True):
     with torch.no_grad():
         tt_x = torch.linspace(range[0][0], range[0][1], bins[0])
         tt_y = torch.linspace(range[1][0],range[1][1], bins[1])
@@ -94,19 +93,17 @@ def plot_likelihood_function(log_likelihood, range = [[-10,10],[-10,10]], bins =
     if show:
         plt.show()
 
-def plot_2d_points(samples,show = True):
+def plot_2d_points(samples,show = True, color = 'C0'):
     assert samples.shape[-1] == 2, 'Requires 2-dimensional points'
-    plt.scatter(samples[:,0].numpy(), samples[:,1].numpy())
+    plt.scatter(samples[:,0].numpy(), samples[:,1].numpy(), color = color)
     if show:
         plt.show()
 
-def plot_image_2d_points(samples, bins=(200, 200), range=None, alpha = 1.,figsize = (12,8), show = True):
-    fig = plt.figure(figsize = figsize)
+def plot_image_2d_points(samples, bins=(200, 200), range=None, alpha = 1.,show = True):
     assert samples.shape[-1] == 2, 'Requires 2-dimensional points'
-    hist, y_edges, x_edges = numpy.histogram2d(samples[:, 1].numpy(), samples[:, 0].numpy(), bins,range)
+    hist, x_edges, y_edges = numpy.histogram2d(samples[:, 0].numpy(), samples[:, 1].numpy(), bins,range)
     plt.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
-    plt.pcolormesh(x_edges, y_edges, hist, cmap=matplotlib.cm.get_cmap('viridis'),
-                   alpha=alpha, lw=0)
+    plt.pcolormesh(x_edges, y_edges, hist.T, cmap=matplotlib.cm.get_cmap('viridis'),alpha=alpha, lw=0)
     if show:
         plt.show()
 

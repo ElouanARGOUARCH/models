@@ -1,4 +1,6 @@
 import torch
+import sklearn
+from sklearn import datasets
 import math
 import matplotlib.pyplot as plt
 
@@ -22,6 +24,15 @@ class Target(torch.nn.Module):
             plt.figure(figsize=(8, 8))
             plt.scatter(samples[:,-2], samples[:,-1],color='red',alpha=0.6)
             plt.show()
+
+class SCurve(Target):
+    def __init__(self):
+        super().__init__()
+
+    def sample(self, num_samples):
+        X, t = datasets.make_s_curve(num_samples[0], noise=0.05)
+        X = torch.tensor(sklearn.preprocessing.StandardScaler().fit_transform(X)).float()
+        return torch.cat([X[:,0].unsqueeze(-1), X[:,-1].unsqueeze(-1)], dim = -1)
 
 class TwoCircles(Target):
     def __init__(self):
