@@ -47,7 +47,7 @@ class TMC(torch.nn.Module):
 
     def train(self, epochs,num_samples,lr = 5e-3, weight_decay = 5e-5, verbose = False):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.optimizer = torch.optim.Adam(self.para_list, lr, weight_decay)
+        self.optimizer = torch.optim.Adam(self.para_list, lr=lr, weight_decay=weight_decay)
         self.to(device)
         if verbose:
             pbar = tqdm(range(epochs))
