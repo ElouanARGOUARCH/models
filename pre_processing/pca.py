@@ -1,15 +1,17 @@
 import torch
 import sklearn
+from sklearn import decomposition
 import matplotlib.pyplot as plt
 
 class PCA():
     def __init__(self,data, n_components = 'mle',visual = False):
-        self.transformer = sklearn.decomposition.PCA(n_components)
+        self.transformer = decomposition.PCA(n_components)
         self.transformer.fit(data)
         if visual:
-            values = self.tool.explained_variance_ratio_
+            values = torch.tensor(self.transformer.explained_variance_ratio_)
+            print(values.shape)
             plt.plot(range(len(values)), values)
-            plt.plot(range(len(values)), torch.cumsum(values))
+            plt.plot(range(len(values)), torch.cumsum(values, dim = 0))
             plt.show()
 
     def transform(self, data):

@@ -2,7 +2,7 @@ import torch
 from tqdm import tqdm
 
 class BinaryClassifier(torch.nn.Module):
-    def __init__(self, label_0_samples, label_1_samples,hidden_dims = [] ):
+    def __init__(self, label_0_samples, label_1_samples,hidden_dims = []):
         super().__init__()
         self.label_0_samples = label_0_samples
         self.label_1_samples = label_1_samples
@@ -22,7 +22,7 @@ class BinaryClassifier(torch.nn.Module):
         label_1_samples = samples[labels == 1]
         label_1_w = w[labels == 1]
         log_sigmoid = torch.nn.LogSigmoid()
-        return -torch.mean(log_sigmoid(self.logit_r(label_1_samples))) - torch.mean(log_sigmoid(-self.logit_r(label_0_samples)))
+        return -torch.sum(label_1_w * log_sigmoid(self.logit_r(label_1_samples))) - torch.sum(label_0_w * log_sigmoid(-self.logit_r(label_0_samples)))
 
     def train(self, epochs, batch_size=None, lr=5e-3, weight_decay=5e-6):
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)

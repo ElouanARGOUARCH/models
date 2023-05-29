@@ -13,4 +13,4 @@ class logit():
     def inverse_transform(self, x, alpha = None):
         if alpha is None:
             alpha = self.alpha
-        return (torch.sigmoid(x)- alpha*torch.ones_like(x))/(1-2*alpha)
+        return (torch.sigmoid(x)-alpha*torch.ones_like(x))/(1-2*alpha)
