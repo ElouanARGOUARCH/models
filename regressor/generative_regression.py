@@ -294,4 +294,3 @@ class generative_bayesian_affine_regression:
             list_sigma2_gibbs.append(current_sigma2)
 
         return torch.stack(list_x0_gibbs), torch.stack(list_beta_gibbs), torch.stack(list_sigma2_gibbs)
-

@@ -1,5 +1,6 @@
 import torch
 from tqdm import tqdm
+from misc.metrics import *
 
 class BinaryClassifier(torch.nn.Module):
     def __init__(self, label_0_samples, label_1_samples,hidden_dims = []):
@@ -24,7 +25,7 @@ class BinaryClassifier(torch.nn.Module):
         log_sigmoid = torch.nn.LogSigmoid()
         return -torch.sum(label_1_w * log_sigmoid(self.logit_r(label_1_samples))) - torch.sum(label_0_w * log_sigmoid(-self.logit_r(label_0_samples)))
 
-    def train(self, epochs, batch_size=None, lr=5e-3, weight_decay=5e-6):
+    def train(self, epochs, batch_size=None, lr=5e-3, weight_decay=5e-6, verbose = False):
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
         if batch_size is None:
             batch_size = self.label_1_samples.shape[0] + self.label_0_samples.shape[0]
@@ -34,7 +35,10 @@ class BinaryClassifier(torch.nn.Module):
         labels= torch.cat([torch.zeros(self.label_0_samples.shape[0]), torch.ones(self.label_1_samples.shape[0])], dim = 0).long().to(device)
         dataset = torch.utils.data.TensorDataset(samples, labels, self.w.to(device))
 
-        pbar = tqdm(range(epochs))
+        if verbose:
+            pbar = tqdm(range(epochs))
+        else:
+            pbar = range(epochs)
         for t in pbar:
             dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
             for batch in dataloader:
@@ -94,5 +98,6 @@ class Classifier(torch.nn.Module):
                     iteration_loss = torch.tensor(
                         [self.loss(batch[0].to(device), batch[1].to(device), batch[2].to(device)) for _, batch in
                          enumerate(dataloader)]).sum().item()
-                pbar.set_postfix_str('loss = ' + str(round(iteration_loss,4)) + '; device = ' + str(device))
+                    accuracy = compute_accuracy(self.log_prob(self.samples), self.labels)
+                pbar.set_postfix_str('loss = ' + str(round(iteration_loss,4)) + '; device = ' + str(device) + '; accuracy = ' +str(accuracy))
         self.cpu()

@@ -1,6 +1,7 @@
 import torch
 from tqdm import tqdm
 from density_estimation import SoftmaxWeight
+from density_estimation.gaussian_mixture_model import DiagGaussianMixtEM
 
 class ConditionalLocationScale(torch.nn.Module):
     def __init__(self, K, p, d, hidden_dimensions):
@@ -67,6 +68,16 @@ class ConditionalDIF(torch.nn.Module):
         self.W = SoftmaxWeight(self.K, self.p+self.d, hidden_dimensions)
 
         self.T = ConditionalLocationScale(self.K, self.p, self.d, hidden_dimensions)
+
+    def initialize_with_EM(self, epochs, verbose = False):
+        em = DiagGaussianMixtEM(self.D_x,self.K)
+        em.train(epochs, verbose)
+        self.T.f[-1].weight = torch.nn.Parameter(torch.zeros(self.T.network_dimensions[-1],self.T.network_dimensions[-2]))
+        self.T.f[-1].bias = torch.nn.Parameter(torch.cat([em.m,em.log_s], dim = -1).flatten())
+        self.W.f[-1].weight = torch.nn.Parameter(torch.zeros(self.W.network_dimensions[-1],self.W.network_dimensions[-2]))
+        self.W.f[-1].bias = torch.nn.Parameter(em.log_pi)
+        self.reference_mean = torch.zeros(self.p)
+        self.reference_cov = torch.eye(self.p)
 
     def reference_log_prob(self,z):
         return torch.distributions.MultivariateNormal(self.reference_mean.to(z.device), self.reference_cov.to(z.device)).log_prob(z)

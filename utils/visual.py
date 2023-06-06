@@ -93,6 +93,11 @@ def plot_likelihood_function(log_likelihood, range = [[-10,10],[-10,10]], bins =
     if show:
         plt.show()
 
+def plot_average_likelihood_function(log_likelihood_list, range = [[-10,10],[-10,10]], bins = [50,50], levels = 2 , alpha = 0.7, figsize = (10,6), show = True):
+    total_log_likelihood = lambda y, x: torch.logsumexp(
+        torch.cat([log_likelihood(y, x).unsqueeze(0) for log_likelihood in log_likelihood_list], dim=0), dim=0)
+    plot_likelihood_function(total_log_likelihood, range=range, bins = bins, levels = levels, alpha = alpha, figsize = figsize, show = show)
+
 def plot_2d_points(samples,show = True, color = 'C0'):
     assert samples.shape[-1] == 2, 'Requires 2-dimensional points'
     plt.scatter(samples[:,0].numpy(), samples[:,1].numpy(), color = color)

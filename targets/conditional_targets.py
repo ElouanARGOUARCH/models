@@ -31,3 +31,33 @@ class DeformedCircles(ConditionalTarget):
                                                      torch.eye(1).unsqueeze(0).repeat(2, 1, 1) * noise)
         mixt = torch.distributions.MixtureSameFamily(cat, mvn)
         return mixt.log_prob(r)
+
+class Wave(ConditionalTarget):
+    def __init__(self):
+        super().__init__()
+        self.p = 1
+        self.d = 1
+
+    def mu(self,theta):
+        return torch.sin(math.pi * theta)/(1+theta**2)+ torch.sin(math.pi * theta / 3.0)
+
+    def sigma2(self,theta):
+        return torch.square(.5 * (1.2 - 1 / (1 + 0.1 * theta ** 2))) + 0.05
+
+    def sample(self, thetas):
+        return torch.cat([torch.distributions.Normal(self.mu(theta), self.sigma2(theta)).sample().unsqueeze(-1) for theta in thetas], dim=0)
+
+class DoubleWave(ConditionalTarget):
+    def __init__(self):
+        super().__init__()
+        self.p = 1
+        self.d = 1
+
+    def mu(self,theta):
+        return torch.sin(math.pi * theta)/(1+theta**2)+ torch.sin(math.pi * theta / 3.0)
+
+    def sigma2(self,theta):
+        return torch.square(.5 * (1.2 - 1 / (1 + 0.1 * theta ** 2))) + 0.05
+
+    def sample(self, thetas):
+        return torch.cat([torch.distributions.MixtureSameFamily(torch.distributions.Categorical(torch.tensor([.5,.5])),torch.distributions.Normal(torch.cat([self.mu(theta),-self.mu(theta)]), torch.cat([self.sigma2(theta),self.sigma2(theta)]))).sample([1]).unsqueeze(-1) for theta in thetas], dim=0)

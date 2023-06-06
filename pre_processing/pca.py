@@ -9,7 +9,6 @@ class PCA():
         self.transformer.fit(data)
         if visual:
             values = torch.tensor(self.transformer.explained_variance_ratio_)
-            print(values.shape)
             plt.plot(range(len(values)), values)
             plt.plot(range(len(values)), torch.cumsum(values, dim = 0))
             plt.show()
