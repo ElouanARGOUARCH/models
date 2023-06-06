@@ -22,6 +22,11 @@ class DIFSampler(torch.nn.Module):
         log_v = self.reference_log_prob(z) + torch.diagonal(self.w.log_prob(z), 0, -2, -1) + self.T.log_det_J(x)
         return log_v - torch.logsumexp(log_v, dim=-1, keepdim=True)
 
+    def IS_DKL(self,z):
+        x = self.T.backward(z)
+        return torch.mean(
+            torch.sum(torch.exp(self.w.log_prob(z)) * (self.target_log_prob(x) - self.log_prob(x))*torch.exp(self.target_log_prob(x) - self.log_prob(x)), dim=-1))
+
     def DKL_observed(self, z):
         x = self.T.backward(z)
         return torch.mean(torch.sum(torch.exp(self.w.log_prob(z))*(self.log_prob(x) - self.target_log_prob(x)),dim = -1))
@@ -56,7 +61,8 @@ class DIFSampler(torch.nn.Module):
         for _ in pbar:
             z = torch.randn([num_samples,self.p]).to(device)
             self.optimizer.zero_grad()
-            loss = self.DKL_observed(z)
+            #loss = self.DKL_observed(z)
+            loss = self.IS_DKL(z)
             loss.backward()
             self.optimizer.step()
             if verbose:
