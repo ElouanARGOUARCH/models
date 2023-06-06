@@ -92,7 +92,7 @@ class FlowDensityEstimation(torch.nn.Module):
         self.reference_mean = torch.mean(target_samples,dim = 0)
 
         _ = torch.cov(self.target_samples.T)
-        self.reference_cov = (_ + _.T)/2
+        self.reference_cov = ((_ + _.T)/2).reshape(self.p, self.p)
 
         self.w = torch.distributions.Dirichlet(torch.ones(target_samples.shape[0])).sample()
 

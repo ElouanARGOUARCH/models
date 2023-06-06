@@ -53,7 +53,7 @@ class DIFDensityEstimator(torch.nn.Module):
 
         self.reference_mean = torch.mean(self.target_samples,dim = 0)
         _ = torch.cov(self.target_samples.T)
-        self.reference_cov = (_.T + _)/2
+        self.reference_cov = ((_.T + _)/2).reshape(self.p, self.p)
 
         self.W = SoftmaxWeight(self.K, self.p, hidden_dims)
 
