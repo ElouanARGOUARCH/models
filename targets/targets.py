@@ -133,3 +133,30 @@ class Funnel(Target):
         logprob_rem = (- x[..., 1:] ** 2 * (-2 * self.b * x[..., 0].unsqueeze(-1)).exp() - 2 * self.b * x[:, 0].unsqueeze(-1) - torch.tensor(2 * math.pi).log()) / 2
         logprob_rem = logprob_rem.sum(-1)
         return (log_probx1 + logprob_rem.unsqueeze(-1)).flatten()
+
+class Well(Target):
+    def __init__(self,d = 2):
+        super().__init__()
+        self.d = d
+        self.number_spikes = 30
+        self.weights = torch.distributions.Dirichlet(torch.ones(self.number_spikes)).sample()
+        self.means = torch.rand(self.number_spikes, self.d) - torch.ones(self.number_spikes, self.d)*0.5
+        self.vars = torch.rand(self.number_spikes, self.d,1)*torch.eye(self.d).unsqueeze(0).repeat(self.number_spikes,1,1)
+        self.total_mean = torch.cat([torch.zeros(1,self.d), self.means], dim = 0)
+        self.total_var = torch.cat([torch.eye(self.d).unsqueeze(0), self.vars], dim =0)
+        self.mvn = torch.distributions.MultivariateNormal(self.total_mean, self.total_var)
+        self.total_weights = torch.cat([torch.tensor([self.number_spikes]), self.weights], dim = 0)
+        print(self.total_weights)
+        self.cat = torch.distributions.Categorical(self.total_weights/torch.tensor(self.total_weights))
+        self.mixt = torch.distributions.MixtureSameFamily(self.cat, self.mvn)
+
+    def sample(self,num_samples):
+        return self.mixt.sample(num_samples)
+
+    def log_prob(self, x):
+        return self.mixt.log_prob(x)
+
+from utils import *
+target = Well()
+plot_2d_function(lambda x:torch.exp(target.log_prob(x)), range =((-4,4),(-4,4)), bins = (300,300))
+plt.show()
