@@ -42,14 +42,9 @@ def highest_density_region_from_samples(sample, alpha=0.05, roundto=2):
     hpd = list(zip(ite, ite))
     return hpd
 
-def highest_density_region_from_density(sample, alpha=0.05, roundto=2):
-    temp = np.asarray(sample)
-    temp = temp[~np.isnan(temp)]
-    l = np.min(temp)
-    u = np.max(temp)
-    density = scipy.stats.gaussian_kde(temp,'scott')
-    x = np.linspace(l, u, 500)
-    y = density.evaluate(x)
+def highest_density_region_from_density(log_prob, range = (-10,10),alpha=0.05, roundto=2):
+    x = np.linspace(range[0], range[1], 5000)
+    y = torch.exp(log_prob(x)).reshape(5000)
     xy_zipped = zip(x, y / np.sum(y))
     xy = sorted(xy_zipped, key=lambda x: x[1], reverse=True)
     xy_cum_sum = 0
