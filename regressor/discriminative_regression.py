@@ -108,7 +108,7 @@ class discriminative_bayesian_affine_regression:
                 y0, current_beta, current_sigma2)
             current_x0 = torch.distributions.Normal(mean_x0_given_y0_beta_sigma2,
                                                     torch.sqrt(sigma2_x0_given_y0_beta_sigma2)).sample()
-            DXplus = torch.cat([DX, current_x0])
+            DXplus = torch.cat([DX, current_x0.reshape(y0.shape[0])])
             mean_beta_given_Dplus, Sigma_beta_given_Dplus = self.compute_beta_given_sigma2_D_moments(current_sigma2,
                                                                                                      DXplus, DYplus)
             current_beta = torch.distributions.MultivariateNormal(mean_beta_given_Dplus,
