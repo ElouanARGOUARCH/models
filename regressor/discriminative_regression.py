@@ -55,11 +55,8 @@ class discriminative_bayesian_affine_regression_known_variance:
         return mu_x0_given_y0_D, sigma2_x0_given_y0_D.squeeze(-1)
 
 class discriminative_bayesian_affine_regression:
-    def __init__(self, mu_X=torch.tensor(0.), sigma2_X=torch.tensor(1.),
-                 mu_beta=torch.zeros(2), Sigma_beta=torch.eye(2), shape_sigma2=torch.tensor(1.),
+    def __init__(self,mu_beta=torch.zeros(2), Sigma_beta=torch.eye(2), shape_sigma2=torch.tensor(1.),
                  scale_sigma2=torch.tensor(1.)):
-        self.mu_X = mu_X
-        self.sigma2_X = sigma2_X
         self.mu_beta = mu_beta
         self.Sigma_beta = Sigma_beta
         self.shape_sigma2 = shape_sigma2
@@ -93,18 +90,15 @@ class discriminative_bayesian_affine_regression:
         estimated_sigma2 = pyro.distributions.InverseGamma(shape_N, scale_N).sample()
         return estimated_sigma2
 
-    def sample_x0_given_y0_D_Y_gibbs(self, y0, DX, DY, Y=torch.tensor([]), prior_means=torch.tensor([]),
-                                     prior_sigma2s=torch.tensor([]), number_steps=100, verbose=False):
-        assert Y.shape[0] == len(prior_means) == len(
-            prior_sigma2s), 'mismatch in number of unlabeled samples and specified priors'
+    def sample_x0_given_y0_D_Y_gibbs(self, y0, DX, DY,number_steps=100, verbose=False):
         assert DX.shape[0] == DY.shape[0], 'mismatch in dataset numbers'
-        DYplus = torch.cat([DY, y0, torch.flatten(Y)], dim=0)
         current_sigma2 = pyro.distributions.InverseGamma(self.shape_sigma2, self.scale_sigma2).sample()
-        mean_beta_given_D, Sigma_beta_given_D = self.compute_beta_given_sigma2_D_moments(current_sigma2, DX, DY)
-        current_beta = torch.distributions.MultivariateNormal(mean_beta_given_D, Sigma_beta_given_D).sample()
+        mean_beta_given_sigma2_D, Sigma_beta_given_sigma2_D = self.compute_beta_given_sigma2_D_moments(current_sigma2, DX, DY)
+        current_beta = torch.distributions.MultivariateNormal(mean_beta_given_sigma2_D, Sigma_beta_given_sigma2_D).sample()
         list_x0_gibbs = []
         list_beta_gibbs = []
         list_sigma2_gibbs = []
+        DYplus = torch.cat([DY, y0], dim = 0)
         if verbose:
             pbar = tqdm(range(number_steps))
         else:
@@ -114,16 +108,7 @@ class discriminative_bayesian_affine_regression:
                 y0, current_beta, current_sigma2)
             current_x0 = torch.distributions.Normal(mean_x0_given_y0_beta_sigma2,
                                                     torch.sqrt(sigma2_x0_given_y0_beta_sigma2)).sample()
-            current_labels = []
-            for y, prior_mean, prior_sigma2 in zip(Y, prior_means, prior_sigma2s):
-                mu_xj_given_yj_beta_sigma2,sigma2_xj_given_yj_beta_sigma2 = self.compute_x0_given_y0_beta_sigma2_moments(y0,current_beta, current_sigma2)
-                current_label = torch.distributions.Normal(mu_xj_given_yj_beta_sigma2,
-                                                           torch.sqrt(sigma2_xj_given_yj_beta_sigma2)).sample()
-                current_labels.append(current_label.repeat(y.shape[0]))
-            if torch.flatten(Y).shape[0] > 0:
-                DXplus = torch.cat([DX, current_x0.repeat(y0.shape[0]), torch.cat(current_labels)], dim=0)
-            else:
-                DXplus = torch.cat([DX, current_x0.repeat(y0.shape[0])])
+            DXplus = torch.cat([DX, current_x0])
             mean_beta_given_Dplus, Sigma_beta_given_Dplus = self.compute_beta_given_sigma2_D_moments(current_sigma2,
                                                                                                      DXplus, DYplus)
             current_beta = torch.distributions.MultivariateNormal(mean_beta_given_Dplus,
@@ -132,5 +117,4 @@ class discriminative_bayesian_affine_regression:
             list_x0_gibbs.append(current_x0)
             list_beta_gibbs.append(current_beta)
             list_sigma2_gibbs.append(current_sigma2)
-
         return torch.stack(list_x0_gibbs), torch.stack(list_beta_gibbs), torch.stack(list_sigma2_gibbs)
