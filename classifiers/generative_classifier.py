@@ -20,9 +20,9 @@ class GenerativeClassifier(torch.nn.Module):
 
 
     def log_prob(self, samples):
-        augmented_samples = samples.unsqueeze(-2).repeat(1,self.K,1)
-        augmented_labels = torch.eye(self.K).unsqueeze(0).repeat(samples.shape[0],1,1)
-        temp = self.conditional_model.log_prob(augmented_samples,augmented_labels) + self.prior_log_probs.unsqueeze(0).repeat(samples.shape[0],1)
+        augmented_samples = samples.unsqueeze(-2).repeat(1,self.K,1).to(samples.device)
+        augmented_labels = torch.eye(self.K).unsqueeze(0).repeat(samples.shape[0],1,1).to(samples.device)
+        temp = self.conditional_model.log_prob(augmented_samples,augmented_labels) + self.prior_log_probs.unsqueeze(0).repeat(samples.shape[0],1).to(samples.device)
         return temp - torch.logsumexp(temp, dim = 1, keepdim= True)
 
     def loss(self, samples,labels,w):
@@ -52,8 +52,9 @@ class GenerativeClassifier(torch.nn.Module):
                     iteration_loss = torch.tensor(
                         [self.loss(batch[0].to(device), batch[1].to(device), batch[2].to(device)) for _, batch in
                          enumerate(dataloader)]).sum().item()
-                    accuracy = compute_accuracy(self.log_prob(self.samples), self.labels)
+                    accuracy = compute_accuracy(self.cpu().log_prob(self.samples), self.labels)
                 pbar.set_postfix_str('loss = ' + str(round(iteration_loss,4)) + '; device = ' + str(device) + '; accuracy = ' + str(accuracy))
+            self.to(device)
         self.cpu()
 
     def parameters_to_vector(self):
