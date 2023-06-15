@@ -85,21 +85,19 @@ def compute_expected_coverage_from_density(log_prob,window,tested_samples,grid =
         list_.append(sum.unsqueeze(0))
     return torch.cat(list_), torch.linspace(0,1,grid+1)
 
-def plot_expected_coverage_1d_from_samples(reference_samples, tested_samples, label = None, figsize = (5,5), show = False):
+def plot_expected_coverage_1d_from_samples(reference_samples, tested_samples, label = None, show = False):
     assert reference_samples.shape[-1] ==1,'Dimension >= 1 not supported'
     assert tested_samples.shape[-1] == 1,'Dimension >= 1 not supported'
     to_plot, window = compute_expected_coverage_from_samples(reference_samples, tested_samples)
-    fig = plt.figure(figsize=figsize)
     plt.plot(window.numpy(), to_plot.numpy(), label = label)
     plt.plot(window.numpy(),window.numpy(), linestyle = '--', color = 'grey', alpha =.6)
     if show:
         plt.show()
 
 
-def plot_expected_coverage_1d_from_density(log_prob,window, tested_samples, label = None, figsize = (5,5), show =False):
+def plot_expected_coverage_1d_from_density(log_prob,window, tested_samples, label = None, show =False):
     assert tested_samples.shape[-1] == 1,'Dimension >= 1 not supported'
     to_plot, window = compute_expected_coverage_from_density(log_prob,window, tested_samples)
-    fig = plt.figure(figsize=figsize)
     plt.plot(window.numpy(), to_plot.numpy(), label = label)
     plt.plot(window.numpy(),window.numpy(), linestyle = '--', color = 'grey', alpha =.6)
     if show:
