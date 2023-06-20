@@ -74,7 +74,7 @@ class Classifier(torch.nn.Module):
     def loss(self, samples,labels,w):
         return -torch.sum(w*(self.log_prob(samples))[range(samples.shape[0]), labels])
 
-    def train(self, epochs,batch_size=None, lr = 5e-3, weight_decay = 5e-5, verbose = False):
+    def train(self, epochs,batch_size=None, lr = 5e-3, weight_decay = 5e-5, verbose = False, test_samples = None, test_labels = None):
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay = weight_decay)
         if batch_size is None:
             batch_size = self.samples.shape[0]
@@ -98,6 +98,10 @@ class Classifier(torch.nn.Module):
                     iteration_loss = torch.tensor(
                         [self.loss(batch[0].to(device), batch[1].to(device), batch[2].to(device)) for _, batch in
                          enumerate(dataloader)]).sum().item()
-                    accuracy = compute_accuracy(self.log_prob(self.samples), self.labels)
-                pbar.set_postfix_str('loss = ' + str(round(iteration_loss,4)) + '; device = ' + str(device) + '; accuracy = ' +str(accuracy))
+                    train_accuracy = compute_accuracy(self.log_prob(self.samples), self.labels)
+                if (test_samples is not None) and (test_labels is not None):
+                    test_accuracy = compute_accuracy(self.cpu().log_prob(test_samples), test_labels)
+                    pbar.set_postfix_str('loss = ' + str(round(iteration_loss,4)) + '; device = ' + str(device) + '; train_accuracy = ' + str(train_accuracy) + '; test_accuracy = ' + str(test_accuracy))
+                else:
+                    pbar.set_postfix_str('loss = ' + str(round(iteration_loss,4)) + '; device = ' + str(device) + '; train_accuracy = ' +str(train_accuracy))
         self.cpu()
