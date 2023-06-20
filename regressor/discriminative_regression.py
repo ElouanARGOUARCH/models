@@ -90,9 +90,9 @@ class discriminative_bayesian_affine_regression:
         estimated_sigma2 = pyro.distributions.InverseGamma(shape_N, scale_N).sample()
         return estimated_sigma2
 
-    def sample_x0_given_y0_D_Y_gibbs(self, y0, DX, DY,Y=torch.tensor([]),number_steps=100, verbose=False):
+    def sample_x0_given_y0_D_Y_gibbs(self, y0, DX, DY,number_steps=100, verbose=False):
         assert DX.shape[0] == DY.shape[0], 'mismatch in dataset numbers'
-        DYplus = torch.cat([DY, y0, torch.flatten(Y)], dim=0)
+        DYplus = torch.cat([DY, y0], dim = 0)
         current_sigma2 = pyro.distributions.InverseGamma(self.shape_sigma2, self.scale_sigma2).sample()
         mean_beta_given_sigma2_D, Sigma_beta_given_sigma2_D = self.compute_beta_given_sigma2_D_moments(current_sigma2, DX, DY)
         current_beta = torch.distributions.MultivariateNormal(mean_beta_given_sigma2_D, Sigma_beta_given_sigma2_D).sample()
@@ -108,17 +108,7 @@ class discriminative_bayesian_affine_regression:
                 y0, current_beta, current_sigma2)
             current_x0 = torch.distributions.Normal(mean_x0_given_y0_beta_sigma2,
                                                     torch.sqrt(sigma2_x0_given_y0_beta_sigma2)).sample()
-            current_labels = []
-            for y in Y:
-                mean_x_given_y_beta_sigma2, sigma2_x_given_y_beta_sigma2 = self.compute_x0_given_y0_beta_sigma2_moments(
-                    y, current_beta, current_sigma2)
-                current_label = torch.distributions.Normal(mean_x_given_y_beta_sigma2,
-                                                           torch.sqrt(sigma2_x_given_y_beta_sigma2)).sample()
-                current_labels.append(current_label.repeat(y.shape[0]))
-            if torch.flatten(Y).shape[0] > 0:
-                DXplus = torch.cat([DX, current_x0.repeat(y0.shape[0]), torch.cat(current_labels)], dim=0)
-            else:
-                DXplus = torch.cat([DX, current_x0.repeat(y0.shape[0])])
+            DXplus = torch.cat([DX, current_x0.reshape(y0.shape[0])])
             mean_beta_given_Dplus, Sigma_beta_given_Dplus = self.compute_beta_given_sigma2_D_moments(current_sigma2,
                                                                                                      DXplus, DYplus)
             current_beta = torch.distributions.MultivariateNormal(mean_beta_given_Dplus,
