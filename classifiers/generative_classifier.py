@@ -28,7 +28,7 @@ class GenerativeClassifier(torch.nn.Module):
     def loss(self, samples,labels,w):
         return -torch.sum(w*torch.sum(self.log_prob(samples)*labels, dim =-1))
 
-    def train(self, epochs,batch_size=None, lr = 5e-3, weight_decay = 5e-5, verbose = False, test_samples = torch.tensor([]), test_labels = torch.tensor([])):
+    def train(self, epochs,batch_size=None, lr = 5e-3, weight_decay = 5e-5, verbose = False, test_samples = torch.tensor([]), test_labels = torch.tensor([]), trace_accuracy=False):
         optimizer = torch.optim.Adam(self.conditional_model.parameters(), lr=lr, weight_decay = weight_decay)
         if batch_size is None:
             batch_size = self.samples.shape[0]

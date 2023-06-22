@@ -52,14 +52,13 @@ class BinaryClassifier(torch.nn.Module):
         self.to(torch.device('cpu'))
 
 class Classifier(torch.nn.Module):
-    def __init__(self, K, samples, labels, hidden_dimensions =[]):
+    def __init__(self,samples, labels, hidden_dimensions =[]):
         super().__init__()
-        self.K = K
         assert samples.shape[0] == labels.shape[0],'number of samples does not match number of samples'
         self.samples = samples
         self.labels = labels
         self.p = samples.shape[-1]
-        self.network_dimensions = [self.p] + hidden_dimensions + [self.K]
+        self.network_dimensions = [self.p] + hidden_dimensions + [labels.shape[-1]]
         network = []
         for h0, h1 in zip(self.network_dimensions, self.network_dimensions[1:]):
             network.extend([torch.nn.Linear(h0, h1),torch.nn.Tanh(),])
@@ -72,16 +71,18 @@ class Classifier(torch.nn.Module):
         return temp - torch.logsumexp(temp, dim = -1, keepdim=True)
 
     def loss(self, samples,labels,w):
-        return -torch.sum(w*(self.log_prob(samples))[range(samples.shape[0]), labels])
+        return -torch.sum(w.unsqueeze(-1)*(self.log_prob(samples)*labels))
 
-    def train(self, epochs,batch_size=None, lr = 5e-3, weight_decay = 5e-5, verbose = False, test_samples = None, test_labels = None):
+    def train(self, epochs,batch_size=None, lr = 5e-3, weight_decay = 5e-5, verbose = False, test_samples = None, test_labels = None, trace_accuracy = False):
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay = weight_decay)
         if batch_size is None:
             batch_size = self.samples.shape[0]
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
         dataset = torch.utils.data.TensorDataset(self.samples, self.labels, self.w)
-
+        if trace_accuracy:
+            train_accuracy_trace = []
+            test_accuracy_trace = []
         if verbose:
             pbar = tqdm(range(epochs))
         else:
@@ -99,9 +100,18 @@ class Classifier(torch.nn.Module):
                         [self.loss(batch[0].to(device), batch[1].to(device), batch[2].to(device)) for _, batch in
                          enumerate(dataloader)]).sum().item()
                     train_accuracy = compute_accuracy(self.log_prob(self.samples), self.labels)
+                    if trace_accuracy:
+                        train_accuracy_trace.append(str(train_accuracy))
                 if (test_samples is not None) and (test_labels is not None):
                     test_accuracy = compute_accuracy(self.cpu().log_prob(test_samples), test_labels)
+                    if test_accuracy:
+                        test_accuracy_trace.append(str(test_accuracy))
                     pbar.set_postfix_str('loss = ' + str(round(iteration_loss,4)) + '; device = ' + str(device) + '; train_accuracy = ' + str(train_accuracy) + '; test_accuracy = ' + str(test_accuracy))
                 else:
                     pbar.set_postfix_str('loss = ' + str(round(iteration_loss,4)) + '; device = ' + str(device) + '; train_accuracy = ' +str(train_accuracy))
         self.cpu()
+        if trace_accuracy:
+            if (test_samples is not None) and (test_labels is not None):
+                return train_accuracy_trace, test_accuracy_trace
+            else:
+                return train_accuracy_trace
