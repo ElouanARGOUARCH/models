@@ -82,7 +82,8 @@ class Classifier(torch.nn.Module):
         dataset = torch.utils.data.TensorDataset(self.samples, self.labels, self.w)
         if trace_accuracy:
             train_accuracy_trace = []
-            test_accuracy_trace = []
+            if (test_samples is not None) and (test_labels is not None):
+                test_accuracy_trace = []
         if verbose:
             pbar = tqdm(range(epochs))
         else:
@@ -99,12 +100,12 @@ class Classifier(torch.nn.Module):
                     iteration_loss = torch.tensor(
                         [self.loss(batch[0].to(device), batch[1].to(device), batch[2].to(device)) for _, batch in
                          enumerate(dataloader)]).sum().item()
-                    train_accuracy = compute_accuracy(self.log_prob(self.samples), self.labels)
+                    train_accuracy = compute_accuracy(self.log_prob(self.samples.to(device)), self.labels.to(device))
                     if trace_accuracy:
                         train_accuracy_trace.append(str(train_accuracy))
                 if (test_samples is not None) and (test_labels is not None):
-                    test_accuracy = compute_accuracy(self.cpu().log_prob(test_samples), test_labels)
-                    if test_accuracy:
+                    test_accuracy = compute_accuracy(self.log_prob(test_samples.to(device)), test_labels.to(device))
+                    if trace_accuracy:
                         test_accuracy_trace.append(str(test_accuracy))
                     pbar.set_postfix_str('loss = ' + str(round(iteration_loss,4)) + '; device = ' + str(device) + '; train_accuracy = ' + str(train_accuracy) + '; test_accuracy = ' + str(test_accuracy))
                 else:
