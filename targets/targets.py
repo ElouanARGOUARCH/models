@@ -57,40 +57,44 @@ class TwoCircles(Target):
         mixt = torch.distributions.MixtureSameFamily(cat, mvn)
         return mixt.log_prob(r)
 
+
 class Orbits(Target):
-    def __init__(self):
+    def __init__(self, number_planets=7, means_target=None, covs_target=None, weights_target=None):
         super().__init__()
-        number_planets = 7
-        covs_target = 0.04 * torch.eye(2).unsqueeze(0).repeat(number_planets, 1, 1)
-        means_target = 2.5 * torch.view_as_real(
-            torch.pow(torch.exp(torch.tensor([2j * 3.1415 / number_planets])), torch.arange(0, number_planets)))
-        weights_target = torch.ones(number_planets)
-        weights_target = weights_target
+        self.number_planets = number_planets
+        if means_target is None:
+            self.means_target = 2.5 * torch.view_as_real(
+                torch.pow(torch.exp(torch.tensor([2j * 3.1415 / number_planets])), torch.arange(0, number_planets)))
+        else:
+            assert means_target.shape != [self.number_planets, 2], "wrong size of means"
+            self.means_target = means_target
 
-        mvn_target = torch.distributions.MultivariateNormal(means_target, covs_target)
-        cat = torch.distributions.Categorical(torch.exp(weights_target) / torch.sum(torch.exp(weights_target)))
-        self.mix_target = torch.distributions.MixtureSameFamily(cat, mvn_target)
+        if covs_target is None:
+            self.covs_target = 0.04 * torch.eye(2).unsqueeze(0).repeat(number_planets, 1, 1)
+        else:
+            assert covs_target.shape != [self.number_planets, 2, 2], 'wrong size of covs'
+            self.covs_target = covs_target
 
-    def sample(self, num_samples):
-        number_planets = 7
-        covs_target = 0.04 * torch.eye(2).unsqueeze(0).repeat(number_planets, 1, 1)
-        means_target = 2.5 * torch.view_as_real(
-            torch.pow(torch.exp(torch.tensor([2j * 3.1415 / number_planets])), torch.arange(0, number_planets)))
-        weights_target = torch.ones(number_planets)
+        if weights_target is None:
+            self.weights_target = torch.ones(self.number_planets)
+        else:
+            assert weights_target.shape != [self.number_planets], 'wrong size of weights'
+            self.weights_target = weights_target
 
-        mvn_target = torch.distributions.MultivariateNormal(means_target, covs_target)
-        cat = torch.distributions.Categorical(torch.exp(weights_target) / torch.sum(torch.exp(weights_target)))
-        return torch.distributions.MixtureSameFamily(cat, mvn_target).sample(num_samples)
+    def sample(self, num_samples, joint=False):
+        mvn_target = torch.distributions.MultivariateNormal(self.means_target, self.covs_target)
+        all_x = mvn_target.sample(num_samples)
+        cat = torch.distributions.Categorical(self.weights_target.softmax(dim=0))
+        pick = cat.sample(num_samples)
+        if joint:
+            return all_x[range(all_x.shape[0]), pick, :], pick
+        else:
+            return all_x[range(all_x.shape[0]), pick, :]
 
-    def log_prob(self,x):
-        number_planets = 7
-        covs_target = 0.04 * torch.eye(2).unsqueeze(0).repeat(number_planets, 1, 1)
-        means_target = 2.5 * torch.view_as_real(
-            torch.pow(torch.exp(torch.tensor([2j * 3.1415 / number_planets])), torch.arange(0, number_planets)))
-        weights_target = torch.ones(number_planets).to(x.device)
-
-        mvn_target = torch.distributions.MultivariateNormal(means_target.to(x.device), covs_target.to(x.device))
-        cat = torch.distributions.Categorical(torch.exp(weights_target) / torch.sum(torch.exp(weights_target)))
+    def log_prob(self, x):
+        mvn_target = torch.distributions.MultivariateNormal(self.means_target.to(x.device),
+                                                            self.covs_target.to(x.device))
+        cat = torch.distributions.Categorical(self.weights_target.softmax(dim=0).to(x.device))
         return torch.distributions.MixtureSameFamily(cat, mvn_target).log_prob(x)
 
 class Banana(Target):
@@ -128,6 +132,7 @@ class Funnel(Target):
         rem = torch.randn((num_samples,) + (self.dim - 1,)) * (self.b * x1).exp()
 
         return torch.cat([x1, rem], -1)
+
     def log_prob(self, x):
         log_probx1 = self.distrib_x1.log_prob(x[..., 0].unsqueeze(1))
         logprob_rem = (- x[..., 1:] ** 2 * (-2 * self.b * x[..., 0].unsqueeze(-1)).exp() - 2 * self.b * x[:, 0].unsqueeze(-1) - torch.tensor(2 * math.pi).log()) / 2

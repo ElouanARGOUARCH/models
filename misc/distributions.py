@@ -34,14 +34,17 @@ class Mixture:
             list_evaluated_distributions.append(distribution.log_prob(samples).reshape(samples.shape[:-1]).unsqueeze(1) + torch.log(self.weights[i]))
         return(torch.logsumexp(torch.cat(list_evaluated_distributions, dim =1), dim = 1))
 
-    def sample(self, num_samples):
+    def sample(self, num_samples, joint = False):
         sampled_distributions = []
         for distribution in self.distributions:
             sampled_distributions.append(distribution.sample(num_samples).unsqueeze(1))
         temp = torch.cat(sampled_distributions, dim = 1)
         pick = torch.distributions.Categorical(self.weights).sample(num_samples).squeeze(-1)
         temp2 = torch.stack([temp[i,pick[i],:] for i in range(temp.shape[0])])
-        return temp2
+        if joint:
+            return temp2, pick
+        else:
+            return temp2
 
 class GeneralizedMultivariateNormal():
     def __init__(self, p):
