@@ -64,9 +64,8 @@ def plot_1d_unormalized_function(f,range = [-10,10], bins=100, figsize = (10,6),
         values = f(tt)
     plot_1d_unormalized_values(tt,values, figsize = figsize, show = show, label = label)
 
-def plot_1d_unormalized_values(tt,values, figsize = (10,6), show = True, label = None):
+def plot_1d_unormalized_values(tt,values, show = True, label = None):
     x_min, x_max, bins = tt[0], tt[-1], tt.shape[0]
-    fig = plt.figure(figsize = figsize)
     plt.plot(tt, values*bins/(torch.sum(values)*(x_max - x_min)), label = label)
     if show:
         plt.show()
