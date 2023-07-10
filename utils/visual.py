@@ -58,11 +58,11 @@ purple_cmap = ListedColormap(purple[::-1])
 
 purple_color = "#660066"
 
-def plot_1d_unormalized_function(f,range = [-10,10], bins=100, figsize = (10,6), show = True, label = None):
+def plot_1d_unormalized_function(f,range = [-10,10], bins=100, show = True, label = None):
     tt =torch.linspace(range[0],range[1],bins)
     with torch.no_grad():
         values = f(tt)
-    plot_1d_unormalized_values(tt,values, figsize = figsize, show = show, label = label)
+    plot_1d_unormalized_values(tt,values, show = show, label = label)
 
 def plot_1d_unormalized_values(tt,values, show = True, label = None):
     x_min, x_max, bins = tt[0], tt[-1], tt.shape[0]
