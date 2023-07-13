@@ -95,10 +95,10 @@ def plot_expected_coverage_1d_from_samples(reference_samples, tested_samples, la
         plt.show()
 
 
-def plot_expected_coverage_1d_from_density(log_prob,window, tested_samples, label = None, show =False):
+def plot_expected_coverage_1d_from_density(log_prob,window, tested_samples, label = None, show =False, color = None):
     assert tested_samples.shape[-1] == 1,'Dimension >= 1 not supported'
     to_plot, window = compute_expected_coverage_from_density(log_prob,window, tested_samples)
-    plt.plot(window.numpy(), to_plot.numpy(), label = label)
+    plt.plot(window.numpy(), to_plot.numpy(), label = label, color = color)
     plt.plot(window.numpy(),window.numpy(), linestyle = '--', color = 'grey', alpha =.6)
     if show:
         plt.show()
