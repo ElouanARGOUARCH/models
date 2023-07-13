@@ -119,7 +119,6 @@ class generative_bayesian_affine_regression_known_variance:
         self.sigma2_X = sigma2_X
         self.mu_beta = mu_beta
         self.Sigma_beta = Sigma_beta
-        #small change
 
     def compute_x0_given_y0_beta_moments(self, y0, beta):
         sigma_x0_given_y0_beta = 1 / (
@@ -230,14 +229,11 @@ class generative_bayesian_affine_regression:
 
     def compute_beta_given_sigma2_D_moments(self, sigma2, DX, DY):
         assert DX.shape[0] == DY.shape[0], 'Mismatch in number samples'
-        if DX.shape[0] >= 1:
-            temp = torch.cat([DX.unsqueeze(-1), torch.ones(DX.shape[0], 1)], dim=-1)
-            Sigma_beta_given_D = torch.inverse(
-                temp.T @ temp / sigma2 + torch.inverse(self.Sigma_beta))
-            mu_beta_given_D = Sigma_beta_given_D @ (
-                    DY @ temp / sigma2 + torch.inverse(self.Sigma_beta) @ self.mu_beta)
-        else:
-            mu_beta_given_D, Sigma_phi_given_D = self.mu_beta, self.sigma_beta
+        temp = torch.cat([DX.unsqueeze(-1), torch.ones(DX.shape[0], 1)], dim=-1)
+        Sigma_beta_given_D = torch.inverse(
+            temp.T @ temp / sigma2 + torch.inverse(self.Sigma_beta))
+        mu_beta_given_D = Sigma_beta_given_D @ (
+                DY @ temp / sigma2 + torch.inverse(self.Sigma_beta) @ self.mu_beta)
         return mu_beta_given_D, Sigma_beta_given_D
 
     def compute_sigma2_given_beta_D_parameters(self, beta, DX, DY):
