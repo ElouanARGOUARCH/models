@@ -264,8 +264,7 @@ class generative_bayesian_affine_regression:
         for _ in pbar:
             mean_x0_given_y0_beta_sigma2, sigma2_x0_given_y0_beta_sigma2 = self.compute_x0_given_y0_beta_sigma2_moments(
                 y0, current_beta, current_sigma2)
-            current_x0 = torch.distributions.Normal(mean_x0_given_y0_beta_sigma2,
-                                                    torch.sqrt(sigma2_x0_given_y0_beta_sigma2)).sample()
+            current_x0 = (mean_x0_given_y0_beta_sigma2 + torch.sqrt(sigma2_x0_given_y0_beta_sigma2)*torch.randn(1)).squeeze(-1)
             current_labels = []
             for y, prior_mean, prior_sigma2 in zip(Y, prior_means, prior_sigma2s):
                 sigma2_xj_given_yj_beta_sigma2 = 1 / (
@@ -273,20 +272,16 @@ class generative_bayesian_affine_regression:
                 mu_xj_given_yj_beta_sigma2 = sigma2_xj_given_yj_beta_sigma2 * (
                         prior_mean / prior_sigma2 + current_beta[0] * torch.sum(
                     y - current_beta[1]) / current_sigma2)
-                current_label = torch.distributions.Normal(mu_xj_given_yj_beta_sigma2,
-                                                           torch.sqrt(sigma2_xj_given_yj_beta_sigma2)).sample()
+                current_label = (mu_xj_given_yj_beta_sigma2 + torch.sqrt(sigma2_xj_given_yj_beta_sigma2)*torch.randn(1)).squeeze(-1)
                 current_labels.append(current_label.repeat(y.shape[0]))
             if torch.flatten(Y).shape[0] > 0:
                 DXplus = torch.cat([DX, current_x0.repeat(y0.shape[0]), torch.cat(current_labels)], dim=0)
             else:
                 DXplus = torch.cat([DX, current_x0.repeat(y0.shape[0])])
-            mean_beta_given_Dplus, Sigma_beta_given_Dplus = self.compute_beta_given_sigma2_D_moments(current_sigma2,
-                                                                                                     DXplus, DYplus)
-            current_beta = torch.distributions.MultivariateNormal(mean_beta_given_Dplus,
-                                                                  Sigma_beta_given_Dplus).sample()
+            mean_beta_given_Dplus, Sigma_beta_given_Dplus = self.compute_beta_given_sigma2_D_moments(current_sigma2,DXplus, DYplus)
+            current_beta = (mean_beta_given_Dplus + torch.linalg.cholesky(Sigma_beta_given_Dplus)@torch.randn(2)).squeeze(-1)
             current_sigma2 = self.compute_sigma2_given_beta_D_parameters(current_beta, DXplus, DYplus)
             list_x0_gibbs.append(current_x0)
             list_beta_gibbs.append(current_beta)
             list_sigma2_gibbs.append(current_sigma2)
-
         return torch.stack(list_x0_gibbs), torch.stack(list_beta_gibbs), torch.stack(list_sigma2_gibbs)
