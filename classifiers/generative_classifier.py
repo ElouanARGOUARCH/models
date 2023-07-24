@@ -16,8 +16,6 @@ class GenerativeClassifier(torch.nn.Module):
             self.prior_log_probs = torch.log(torch.ones(self.K)/self.K)
         else:
             self.prior_log_probs = torch.log(prior_probs)
-        self.w = torch.distributions.Dirichlet(torch.ones(samples.shape[0])).sample()
-
 
     def log_prob(self, samples):
         augmented_samples = samples.unsqueeze(-2).repeat(1,self.K,1).to(samples.device)
@@ -29,11 +27,12 @@ class GenerativeClassifier(torch.nn.Module):
         return -torch.sum(w*torch.sum(self.log_prob(samples)*labels, dim =-1))
 
     def train(self, epochs,batch_size=None, lr = 5e-3, weight_decay = 5e-5, verbose = False, test_samples = None, test_labels = None, trace_accuracy = False):
+        w = torch.distributions.Dirichlet(torch.ones(self.samples.shape[0])).sample()
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay = weight_decay)
         if batch_size is None:
             batch_size = self.samples.shape[0]
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        dataset = torch.utils.data.TensorDataset(self.samples, self.labels, self.w)
+        dataset = torch.utils.data.TensorDataset(self.samples, self.labels, w)
         if trace_accuracy:
             train_accuracy_trace = []
             if (test_samples is not None) and (test_labels is not None):
