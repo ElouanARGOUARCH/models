@@ -91,6 +91,8 @@ def plot_expected_coverage_1d_from_samples(reference_samples, tested_samples, la
     to_plot, window = compute_expected_coverage_from_samples(reference_samples, tested_samples)
     plt.plot(window.numpy(), to_plot.numpy(), label = label)
     plt.plot(window.numpy(),window.numpy(), linestyle = '--', color = 'grey', alpha =.6)
+    plt.text(.75,.75, 'Overconfident', rotation = .45, color = 'grey', alpha = .2)
+    plt.text(.25, .25, 'Conservative', rotation=.45, color='grey', alpha=.2)
     if show:
         plt.show()
 
@@ -100,5 +102,7 @@ def plot_expected_coverage_1d_from_density(log_prob,window, tested_samples, labe
     to_plot, window = compute_expected_coverage_from_density(log_prob,window, tested_samples)
     plt.plot(window.numpy(), to_plot.numpy(), label = label, color = color)
     plt.plot(window.numpy(),window.numpy(), linestyle = '--', color = 'grey', alpha =.6)
+    plt.text(.75,.75, 'Overconfident', rotation = .45, color = 'grey', alpha = .2)
+    plt.text(.25, .25, 'Conservative', rotation=.45, color='grey', alpha=.2)
     if show:
         plt.show()
