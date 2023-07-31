@@ -71,7 +71,6 @@ class DIFDensityEstimator(torch.nn.Module):
         self.reference_mean = torch.zeros(self.p)
         self.reference_cov = torch.eye(self.p)
 
-
     def reference_log_prob(self,z):
         return torch.distributions.MultivariateNormal(self.reference_mean.to(z.device), self.reference_cov.to(z.device)).log_prob(z)
 
@@ -98,11 +97,20 @@ class DIFDensityEstimator(torch.nn.Module):
         pick = torch.distributions.Categorical(torch.exp(self.W.log_prob(z))).sample()
         return x[range(x.shape[0]), pick, :]
 
+    def M_step(self, x,w):
+        v = torch.exp(self.compute_log_v(x))*w.unsqueeze(-1)
+        c = torch.sum(v, dim=0)
+        #self.log_pi = torch.log(c) - torch.logsumexp(torch.log(c), dim = 0)
+        self.T.m = torch.nn.Parameter(torch.sum(v.unsqueeze(-1).repeat(1, 1, self.p) * x.unsqueeze(-2).repeat(1, self.K, 1),
+                                dim=0) / c.unsqueeze(-1))
+        temp = x.unsqueeze(1).repeat(1,self.K, 1) - self.T.m.unsqueeze(0).repeat(x.shape[0],1,1)
+        temp2 = torch.square(temp)
+        self.T.log_s = torch.nn.Parameter(torch.log(torch.sum(v.unsqueeze(-1).repeat(1, 1, self.p) * temp2,dim=0)/c.unsqueeze(-1))/2)
+
     def loss(self, x,w):
         return -torch.sum(w*self.log_prob(x))
 
-    def train(self, epochs, batch_size = None, lr = 5e-3, weight_decay = 5e-5, verbose = False):
-
+    def train(self, epochs, batch_size = None, lr = 5e-3, weight_decay = 5e-5, verbose = False, trace_loss = False):
         self.para_list = list(self.parameters())
         self.optimizer = torch.optim.Adam(self.para_list, lr=lr, weight_decay=weight_decay)
 
@@ -111,7 +119,8 @@ class DIFDensityEstimator(torch.nn.Module):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
         dataset = torch.utils.data.TensorDataset(self.target_samples.to(device), self.w.to(device))
-
+        if trace_loss:
+            loss_values = []
         if verbose:
             pbar = tqdm(range(epochs))
         else:
@@ -123,8 +132,13 @@ class DIFDensityEstimator(torch.nn.Module):
                 batch_loss = self.loss(batch[0],batch[1])
                 batch_loss.backward()
                 self.optimizer.step()
-            with torch.no_grad():
-                iteration_loss = torch.tensor([self.loss(batch[0],batch[1]) for i, batch in enumerate(dataloader)]).sum().item()
+            if verbose or trace_loss:
+                with torch.no_grad():
+                    iteration_loss = torch.tensor([self.loss(batch[0],batch[1]) for i, batch in enumerate(dataloader)]).sum().item()
             if verbose:
                 pbar.set_postfix_str('loss = ' + str(round(iteration_loss,6)) + ' ; device: ' + str(device))
+            if trace_loss:
+                loss_values.append(iteration_loss)
         self.to(torch.device('cpu'))
+        if trace_loss:
+            return loss_values

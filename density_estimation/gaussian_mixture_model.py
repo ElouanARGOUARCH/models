@@ -64,16 +64,23 @@ class DiagGaussianMixtEM(torch.nn.Module):
         temp2 = torch.square(temp)
         self.log_s = torch.log(torch.sum(v.unsqueeze(-1).repeat(1, 1, self.p) * temp2,dim=0)/c.unsqueeze(-1))/2
 
-    def train(self, epochs, verbose = False):
+    def train(self, epochs, verbose = False, trace_loss = False):
+        if trace_loss:
+            loss_values = []
         if verbose:
             pbar = tqdm(range(epochs))
         else:
             pbar = range(epochs)
         for t in pbar:
             self.M_step(self.target_samples, self.w)
+            if verbose or trace_loss:
+                log_prob = torch.sum(self.log_prob(self.target_samples) * self.w).item()
             if verbose:
-                log_prob = torch.sum(self.log_prob(self.target_samples) * self.w).detach().item()
                 pbar.set_postfix_str('loss = ' + str(log_prob))
+            if trace_loss:
+                loss_values.append(-log_prob)
+        if trace_loss:
+            return loss_values
 
 class FullRankGaussianMixtEM(torch.nn.Module):
     def __init__(self, target_samples, K):
@@ -142,13 +149,20 @@ class FullRankGaussianMixtEM(torch.nn.Module):
         self.Sigma = torch.sum(v.unsqueeze(-1).unsqueeze(-1).repeat(1, 1, self.p, self.p) * (temp @ torch.transpose(temp, -1, -2)),
             dim=0) / (c.unsqueeze(-1).unsqueeze(-1).repeat(1, self.p, self.p))
 
-    def train(self, epochs, verbose = False):
+    def train(self, epochs, verbose=False, trace_loss=False):
+        if trace_loss:
+            loss_values = []
         if verbose:
             pbar = tqdm(range(epochs))
         else:
             pbar = range(epochs)
         for t in pbar:
             self.M_step(self.target_samples, self.w)
+            if verbose or trace_loss:
+                log_prob = torch.sum(self.log_prob(self.target_samples) * self.w).item()
             if verbose:
-                log_prob = torch.sum(self.log_prob(self.target_samples) * self.w).detach().item()
-                pbar.set_postfix_str('log_prob = ' + str(log_prob))
+                pbar.set_postfix_str('loss = ' + str(log_prob))
+            if trace_loss:
+                loss_values.append(-log_prob)
+        if trace_loss:
+            return loss_values

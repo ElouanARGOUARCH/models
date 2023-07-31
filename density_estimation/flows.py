@@ -126,7 +126,7 @@ class FlowDensityEstimation(torch.nn.Module):
     def loss(self, x,w):
         return - torch.sum(w*self.log_prob(x))
 
-    def train(self, epochs, batch_size = None, lr = 5e-3, weight_decay = 5e-5, verbose = False):
+    def train(self, epochs, batch_size = None, lr = 5e-3, weight_decay = 5e-5, verbose = False, trace_loss = False):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
         self.para_dict = []
@@ -135,6 +135,8 @@ class FlowDensityEstimation(torch.nn.Module):
             model.to(device)
         self.optimizer = torch.optim.Adam(self.para_dict)
 
+        if trace_loss:
+            loss_values = []
         if batch_size is None:
             batch_size = self.target_samples.shape[0]
         dataset = torch.utils.data.TensorDataset(self.target_samples.to(device), self.w.to(device))
@@ -149,12 +151,16 @@ class FlowDensityEstimation(torch.nn.Module):
                 batch_loss = self.loss(batch[0],batch[1])
                 batch_loss.backward()
                 self.optimizer.step()
-            if verbose:
+            if verbose or trace_loss:
                 with torch.no_grad():
                     iteration_loss = torch.tensor([self.loss(batch[0], batch[1]) for i, batch in
                                                    enumerate(dataloader)]).sum().item()
+            if verbose:
                 pbar.set_postfix_str('loss = ' + str(round(iteration_loss,6)) + ' ; device: ' + str(device))
-
+            if trace_loss:
+                loss_values.append(iteration_loss)
         self.to('cpu')
         for layer in self.model:
             layer.to(torch.device('cpu'))
+        if trace_loss:
+            return loss_values
