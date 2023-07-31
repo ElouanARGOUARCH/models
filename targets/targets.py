@@ -84,7 +84,7 @@ class Orbits(Target):
     def sample(self, num_samples, joint=False):
         mvn_target = torch.distributions.MultivariateNormal(self.means_target, self.covs_target)
         all_x = mvn_target.sample(num_samples)
-        cat = torch.distributions.Categorical(self.weights_target.softmax(dim=0))
+        cat = torch.distributions.Categorical(self.weights_target.log().softmax(dim=0))
         pick = cat.sample(num_samples)
         if joint:
             return all_x[range(all_x.shape[0]), pick, :], pick
@@ -138,3 +138,20 @@ class Funnel(Target):
         logprob_rem = (- x[..., 1:] ** 2 * (-2 * self.b * x[..., 0].unsqueeze(-1)).exp() - 2 * self.b * x[:, 0].unsqueeze(-1) - torch.tensor(2 * math.pi).log()) / 2
         logprob_rem = logprob_rem.sum(-1)
         return (log_probx1 + logprob_rem.unsqueeze(-1)).flatten()
+
+class Dimension1(Target):
+    def __init__(self):
+        super().__init__()
+        num_component = 6
+        means = torch.tensor([[-0.25], [1.875], [4.125], [6.25], [-5.5], [-8.5]])
+        covs = torch.tensor([[[1.]], [[.5]], [[.5]], [[2.]], [[1]], [[1]]])
+        comp = torch.ones(num_component)
+        mvn_target = torch.distributions.MultivariateNormal(means, covs)
+        cat = torch.distributions.Categorical(comp / torch.sum(comp))
+        self.mix_target = torch.distributions.MixtureSameFamily(cat, mvn_target)
+
+    def sample(self, num_samples):
+        return self.mix_target.sample(num_samples)
+
+    def log_prob(self,samples):
+        return self.mix.log_prob(samples)
