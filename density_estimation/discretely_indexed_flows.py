@@ -43,7 +43,7 @@ class LocationScaleFlow(torch.nn.Module):
         return -self.log_s.sum(-1)
 
 class DIFDensityEstimator(torch.nn.Module):
-    def __init__(self, target_samples, K,hidden_dims = []):
+    def __init__(self, target_samples, K,hidden_dims = [], estimate_reference_moments = False):
         super().__init__()
         self.target_samples = target_samples
         self.p = self.target_samples.shape[-1]
@@ -51,9 +51,13 @@ class DIFDensityEstimator(torch.nn.Module):
 
         self.w = torch.distributions.Dirichlet(torch.ones(target_samples.shape[0])).sample()
 
-        self.reference_mean = torch.mean(self.target_samples,dim = 0)
-        _ = torch.cov(self.target_samples.T)
-        self.reference_cov = ((_.T + _)/2).reshape(self.p, self.p)
+        if estimate_reference_moments:
+            self.reference_mean = torch.mean(self.target_samples,dim = 0)
+            _ = torch.cov(self.target_samples.T)
+            self.reference_cov = ((_.T + _)/2).reshape(self.p, self.p)
+        else:
+            self.reference_mean =torch.zeros(self.p)
+            self.reference_cov = torch.eye(self.p)
 
         self.W = SoftmaxWeight(self.K, self.p, hidden_dims)
 
