@@ -17,7 +17,7 @@ class ConditionalLocationScale(torch.nn.Module):
         network.pop()
         self.f = torch.nn.Sequential(*network)
 
-    def backward(self, z, theta):
+    def backward(self, z, theta, return_log_det = False):
         assert z.shape[:-1]==theta.shape[:-1], 'number of z samples does not match the number of theta samples'
         desired_size = list(z.shape)
         desired_size.insert(-1, self.K)
@@ -26,9 +26,12 @@ class ConditionalLocationScale(torch.nn.Module):
         new_desired_size[-1] = 2*self.p
         out = torch.reshape(self.f(theta), new_desired_size)
         m, log_s = out[...,:self.p], out[...,self.p:]
-        return Z * torch.exp(log_s).expand_as(Z) + m.expand_as(Z)
+        if return_log_det:
+            return Z * torch.exp(log_s).expand_as(Z) + m.expand_as(Z), -log_s.sum(-1)
+        else:
+            return Z * torch.exp(log_s).expand_as(Z) + m.expand_as(Z)
 
-    def forward(self, x, theta):
+    def forward(self, x, theta, return_log_det = False):
         assert x.shape[:-1]==theta.shape[:-1], 'number of x samples does not match the number of theta samples'
         desired_size = list(x.shape)
         desired_size.insert(-1, self.K)
@@ -37,12 +40,14 @@ class ConditionalLocationScale(torch.nn.Module):
         new_desired_size[-1] = 2*self.p
         out = torch.reshape(self.f(theta), new_desired_size)
         m, log_s = out[...,:self.p], out[...,self.p:]
-        return (X-m.expand_as(X))/torch.exp(log_s).expand_as(X)
+        if return_log_det:
+            return (X-m.expand_as(X))/torch.exp(log_s).expand_as(X), -log_s.sum(-1)
+        else:
+            return (X - m.expand_as(X)) / torch.exp(log_s).expand_as(X)
 
     def log_det_J(self,x, theta):
         desired_size = list(x.shape)
         desired_size.insert(-1, self.K)
-        X = x.unsqueeze(-2).expand(desired_size)
         new_desired_size = desired_size
         new_desired_size[-1] = 2*self.p
         log_s = torch.reshape(self.f(theta), new_desired_size)[..., self.p:]
@@ -85,8 +90,8 @@ class ConditionalDIF(torch.nn.Module):
     def compute_log_v(self,x, theta):
         assert x.shape[:-1] == theta.shape[:-1], 'wrong shapes'
         theta_unsqueezed = theta.unsqueeze(-2).repeat(1, self.K, 1)
-        z = self.T.forward(x, theta)
-        log_v = self.reference.log_prob(z) + torch.diagonal(self.W.log_prob(torch.cat([z, theta_unsqueezed], dim = -1)), 0, -2, -1) + self.T.log_det_J(x, theta)
+        z, log_det = self.T.forward(x, theta, return_log_det= True)
+        log_v = self.reference.log_prob(z) + torch.diagonal(self.W.log_prob(torch.cat([z, theta_unsqueezed], dim = -1)), 0, -2, -1) + log_det
         return log_v - torch.logsumexp(log_v, dim = -1, keepdim= True)
 
     def sample_latent(self,x, theta):
@@ -100,8 +105,8 @@ class ConditionalDIF(torch.nn.Module):
         desired_size = list(theta.shape)
         desired_size.insert(-1, self.K)
         theta_unsqueezed = theta.unsqueeze(-2).expand(desired_size)
-        z = self.T.forward(x, theta)
-        return torch.logsumexp(self.reference_log_prob(z) + torch.diagonal(self.W.log_prob(torch.cat([z, theta_unsqueezed], dim = -1)), 0, -2, -1)+ self.T.log_det_J(x, theta),dim=-1)
+        z, log_det = self.T.forward(x, theta, return_log_det = True)
+        return torch.logsumexp(self.reference_log_prob(z) + torch.diagonal(self.W.log_prob(torch.cat([z, theta_unsqueezed], dim = -1)), 0, -2, -1)+ log_det,dim=-1)
 
     def sample(self, theta):
         z = torch.distributions.MultivariateNormal(self.reference_mean, self.reference_cov).sample(theta.shape[:-1])

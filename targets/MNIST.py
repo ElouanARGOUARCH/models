@@ -37,7 +37,7 @@ def get_DIGITS_dataset(one_hot = False):
     samples = torch.tensor(samples).float()
     labels = torch.tensor(labels).to(torch.int64)
     if one_hot:
-        return (samples + torch.rand_like(samples))/256, torch.nn.functional.one_hot(torch.tensor(labels))
+        return (samples + torch.rand_like(samples))/17, torch.nn.functional.one_hot(torch.tensor(labels))
     else:
-        return (samples + torch.rand_like(samples))/256, torch.tensor(labels)
+        return (samples + torch.rand_like(samples))/17, torch.tensor(labels)
 

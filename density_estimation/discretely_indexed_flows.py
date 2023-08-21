@@ -48,9 +48,7 @@ class DIFDensityEstimator(torch.nn.Module):
         self.target_samples = target_samples
         self.p = self.target_samples.shape[-1]
         self.K = K
-
         self.w = torch.distributions.Dirichlet(torch.ones(target_samples.shape[0])).sample()
-
         if estimate_reference_moments:
             self.reference_mean = torch.mean(self.target_samples,dim = 0)
             _ = torch.cov(self.target_samples.T)
@@ -62,8 +60,9 @@ class DIFDensityEstimator(torch.nn.Module):
         self.W = SoftmaxWeight(self.K, self.p, hidden_dims)
 
         self.T = LocationScaleFlow(self.K, self.p)
-        self.T.m = torch.nn.Parameter(self.target_samples[torch.randint(low= 0, high = self.target_samples.shape[0],size = [self.K])])
-        self.T.log_s = torch.nn.Parameter(torch.log(torch.var(self.target_samples, dim = 0).unsqueeze(0).repeat(self.K,1) + 1e-6 *torch.ones(self.K, self.p))/2)
+        if not estimate_reference_moments:
+            self.T.m = torch.nn.Parameter(self.target_samples[torch.randint(low= 0, high = self.target_samples.shape[0],size = [self.K])])
+            self.T.log_s = torch.nn.Parameter(torch.log(torch.var(self.target_samples, dim = 0).unsqueeze(0).repeat(self.K,1) + 1e-6 *torch.ones(self.K, self.p))/2)
 
     def initialize_with_EM(self, epochs, verbose = False):
         em = DiagGaussianMixtEM(self.target_samples,self.K)
