@@ -24,8 +24,8 @@ def get_FashionMNIST_dataset(one_hot = False,repository = 'C:\Users\Elouan\Pycha
                                             download=True, transform=None)
     fmnist_testset = datasets.FashionMNIST(root=repository, train=False,
                                            download=True, transform=None)
-    train_labels = mnist_trainset.targets
-    test_labels = mnist_testset.targets
+    train_labels = fmnist_trainset.targets
+    test_labels = fmnist_testset.targets
     temp_train = fmnist_trainset.data.flatten(start_dim=1).float()
     train_samples = (temp_train + torch.rand_like(temp_train))/256
     temp_test = fmnist_testset.data.flatten(start_dim=1).float()
