@@ -11,7 +11,6 @@ class GenerativeClassifier(torch.nn.Module):
         self.labels = labels
         self.K = labels.shape[-1]
         self.conditional_model = ConditionalDIF(samples, labels, K, hidden_dims)
-        self.conditional_model.initialize_with_EM(10)
         if prior_probs is None:
             self.prior_log_probs = torch.log(torch.ones(self.K)/self.K)
         else:
