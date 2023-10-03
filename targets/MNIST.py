@@ -1,7 +1,7 @@
 import torch
 import torchvision.datasets as datasets
 
-def get_MNIST_dataset(one_hot = False,repository = 'C:\Users\Elouan\PycharmProjects\models\targets\data'):
+def get_MNIST_dataset(one_hot = False,repository = 'C:\\Users\\Elouan\\PycharmProjects\\models\\targets\\data'):
     mnist_trainset = datasets.MNIST(root=repository, train=True,
                                     download=True, transform=None)
     mnist_testset = datasets.MNIST(root=repository, train=False,
@@ -19,7 +19,7 @@ def get_MNIST_dataset(one_hot = False,repository = 'C:\Users\Elouan\PycharmProje
 
 
 
-def get_FashionMNIST_dataset(one_hot = False,repository = 'C:\Users\Elouan\PycharmProjects\models\targets\data'):
+def get_FashionMNIST_dataset(one_hot = False,repository = 'C:\\Users\\Elouan\\PycharmProjects\\models\\targets\\data'):
     fmnist_trainset = datasets.FashionMNIST(root=repository, train=True,
                                             download=True, transform=None)
     fmnist_testset = datasets.FashionMNIST(root=repository, train=False,
@@ -44,3 +44,5 @@ def get_DIGITS_dataset(one_hot = False):
         return (samples + torch.rand_like(samples))/17, torch.nn.functional.one_hot(torch.tensor(labels))
     else:
         return (samples + torch.rand_like(samples))/17, torch.tensor(labels)
+
+get_MNIST_dataset()
