@@ -55,11 +55,11 @@ class GenerativeClassifier(torch.nn.Module):
                          enumerate(dataloader)]).sum().item()
                     train_accuracy = compute_accuracy(self.cpu().log_prob(self.samples), self.labels)
                     if trace_accuracy:
-                        train_accuracy_trace.append(str(train_accuracy))
+                        train_accuracy_trace.append(train_accuracy.item())
                 if (test_samples is not None) and (test_labels is not None):
                     test_accuracy = compute_accuracy(self.log_prob(test_samples), test_labels)
                     if trace_accuracy:
-                        test_accuracy_trace.append(str(test_accuracy))
+                        test_accuracy_trace.append(test_accuracy.item())
                     pbar.set_postfix_str('loss = ' + str(round(iteration_loss,4)) + '; device = ' + str(device) + '; train_accuracy = ' + str(train_accuracy) + '; test_accuracy = ' + str(test_accuracy))
                 else:
                     pbar.set_postfix_str('loss = ' + str(round(iteration_loss,4)) + '; device = ' + str(device) + '; train_accuracy = ' +str(train_accuracy))
