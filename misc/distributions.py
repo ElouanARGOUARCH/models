@@ -47,9 +47,14 @@ class Mixture:
             return temp2
 
 class GeneralizedMultivariateNormal():
-    def __init__(self, p):
+    def __init__(self, p, log_r = None):
         self.p = p
-        self.log_r = torch.log(torch.tensor(2.)).repeat(self.p)
+        if log_r is None:
+            self.log_r = torch.log(torch.tensor(2.)).repeat(self.p)
+        else:
+            assert log_r.shape[0]==self.p,"wrong shape for shape parameter"
+            self.log_r = log_r
+
 
     def sample(self, num_samples, r = None):
         if r is None:
@@ -58,7 +63,7 @@ class GeneralizedMultivariateNormal():
         u = torch.distributions.uniform.Uniform(torch.zeros(self.p), torch.ones(self.p)).sample(num_samples)
         return (u > .5) * Y - (u < .5) * Y
 
-    def log_density(self, x, r = None):
+    def log_prob(self, x, r = None):
         if r is None:
             r = torch.exp(self.log_r)
         log_2_sqrt_2 = 1.0397
