@@ -67,7 +67,7 @@ class MetropolisAdjustedLangevin(torch.nn.Module):
         else:
             pbar = range(number_steps)
         for _ in pbar:
-            x,mask = self.metropolis_adjusted_langevin_step(x,tau)
+            x,mask = self.metropolis_adjusted_step(x,tau)
             if verbose:
                 pbar.set_postfix_str('acceptance = ' + str(torch.mean(mask * 1.)))
         return x
