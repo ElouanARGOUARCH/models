@@ -82,14 +82,14 @@ class RealNVPDensityEstimationLayer(torch.nn.Module):
         return self.q_log_prob(z) + log_det
 
 class FlowDensityEstimation(torch.nn.Module):
-    def __init__(self, target_samples,structure, estimatie_reference = False):
+    def __init__(self, target_samples,structure, estimate_reference = False):
         super().__init__()
         self.target_samples = target_samples
         self.p = self.target_samples.shape[-1]
         self.structure = structure
         self.N = len(self.structure)
 
-        if estimatie_reference:
+        if estimate_reference:
             self.reference_mean = torch.mean(target_samples,dim = 0)
             _ = torch.cov(self.target_samples.T)
             self.reference_cov = ((_ + _.T)/2).reshape(self.p, self.p)
