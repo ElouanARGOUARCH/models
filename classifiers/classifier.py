@@ -13,6 +13,7 @@ class BinaryClassifier(torch.nn.Module):
         network = []
         for h0, h1 in zip(network_dimensions, network_dimensions[1:]):
             network.extend([torch.nn.Linear(h0, h1), torch.nn.SiLU(), ])
+        network.pop()
         self.logit_r = torch.nn.Sequential(*network)
         self.w = torch.distributions.Dirichlet(torch.ones(self.label_0_samples.shape[0] + self.label_1_samples.shape[0])).sample()
 
