@@ -60,8 +60,7 @@ class DiagGaussianMixtEM(torch.nn.Module):
         self.log_pi = torch.log(c) - torch.logsumexp(torch.log(c), dim = 0)
         self.m = torch.sum(v.unsqueeze(-1).repeat(1, 1, self.p) * x.unsqueeze(-2).repeat(1, self.K, 1),
                                 dim=0) / c.unsqueeze(-1)
-        temp = x.unsqueeze(1).repeat(1,self.K, 1) - self.m.unsqueeze(0).repeat(x.shape[0],1,1)
-        temp2 = torch.square(temp)
+        temp2 = torch.square(x.unsqueeze(1).repeat(1,self.K, 1) - self.m.unsqueeze(0).repeat(x.shape[0],1,1))
         self.log_s = torch.log(torch.sum(v.unsqueeze(-1).repeat(1, 1, self.p) * temp2,dim=0)/c.unsqueeze(-1))/2
 
     def train(self, epochs, verbose = False, trace_loss = False):
@@ -74,11 +73,11 @@ class DiagGaussianMixtEM(torch.nn.Module):
         for t in pbar:
             self.M_step(self.target_samples, self.w)
             if verbose or trace_loss:
-                log_prob = torch.sum(self.log_prob(self.target_samples) * self.w).item()
+                loss = torch.sum(self.log_prob(self.target_samples) * self.w).item()
             if verbose:
-                pbar.set_postfix_str('loss = ' + str(log_prob))
+                pbar.set_postfix_str('loss = ' + str(loss))
             if trace_loss:
-                loss_values.append(-log_prob)
+                loss_values.append(loss)
         if trace_loss:
             return loss_values
 
@@ -159,10 +158,10 @@ class FullRankGaussianMixtEM(torch.nn.Module):
         for t in pbar:
             self.M_step(self.target_samples, self.w)
             if verbose or trace_loss:
-                log_prob = torch.sum(self.log_prob(self.target_samples) * self.w).item()
+                loss = -torch.sum(self.log_prob(self.target_samples) * self.w).item()
             if verbose:
-                pbar.set_postfix_str('loss = ' + str(log_prob))
+                pbar.set_postfix_str('loss = ' + str(loss))
             if trace_loss:
-                loss_values.append(-log_prob)
+                loss_values.append(loss)
         if trace_loss:
             return loss_values
