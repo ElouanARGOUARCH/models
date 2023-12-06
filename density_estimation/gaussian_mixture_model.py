@@ -73,7 +73,7 @@ class DiagGaussianMixtEM(torch.nn.Module):
         for t in pbar:
             self.M_step(self.target_samples, self.w)
             if verbose or trace_loss:
-                loss = torch.sum(self.log_prob(self.target_samples) * self.w).item()
+                loss = -torch.sum(self.log_prob(self.target_samples) * self.w).item()
             if verbose:
                 pbar.set_postfix_str('loss = ' + str(loss))
             if trace_loss:
