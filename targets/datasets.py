@@ -45,4 +45,10 @@ def get_DIGITS_dataset(one_hot = False):
     else:
         return (samples + torch.rand_like(samples))/17, torch.tensor(labels)
 
-get_MNIST_dataset()
+
+from ucimlrepo import fetch_ucirepo
+def get_WineQuality_Dataset(one_hot = False):
+    wine_quality = fetch_ucirepo(id=186)
+    samples = wine_quality.data.features
+    labels = wine_quality.data.targets
+    return torch.tensor(samples), torch.tensor(labels)

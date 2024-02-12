@@ -1,6 +1,5 @@
-import torch
-from tqdm import tqdm
-from density_estimation import SoftmaxWeight
+from density_estimation import *
+import math
 
 class ConditionalRealNVPDensityEstimationLayer(torch.nn.Module):
     def __init__(self, sample_dim, label_dim, reference_log_prob, **kwargs):
@@ -51,7 +50,6 @@ class ConditionalRealNVPDensityEstimationLayer(torch.nn.Module):
         latents, log_det = self.sample_forward(samples, labels, return_log_det=True)
         return self.reference_log_prob(latents, labels) + log_det
 
-
 class ConditionalLocationScale(torch.nn.Module):
     def __init__(self, K, sample_dim, label_dim, hidden_dims):
         super().__init__()
@@ -94,7 +92,6 @@ class ConditionalLocationScale(torch.nn.Module):
         else:
             return (Sample - m.expand_as(Sample)) / torch.exp(log_s).expand_as(Sample)
 
-
 class ConditionalDIFLayer(torch.nn.Module):
     def __init__(self, sample_dim, label_dim, reference_log_prob=None, **kwargs):
         super().__init__()
@@ -108,12 +105,25 @@ class ConditionalDIFLayer(torch.nn.Module):
 
         self.reference_log_prob = reference_log_prob
 
+    def initialize_with_EM(self, samples, epochs, verbose=False):
+        em = DiagGaussianMixtEM(samples, self.K)
+        em.train(epochs, verbose)
+        self.T.f[-1].weight = torch.nn.Parameter(
+            torch.zeros(self.T.network_dimensions[-1], self.T.network_dimensions[-2]))
+        self.T.f[-1].bias = torch.nn.Parameter(torch.cat([em.m, em.log_s], dim=-1).flatten())
+        self.W.f[-1].weight = torch.nn.Parameter(
+            torch.zeros(self.W.network_dimensions[-1], self.W.network_dimensions[-2]))
+        self.W.f[-1].bias = torch.nn.Parameter(em.log_pi)
+        self.reference_mean = torch.zeros(self.sample_dim)
+        self.reference_cov = torch.eye(self.sample_dim)
+
     def compute_log_v(self, sample, label):
         assert sample.shape[:-1] == label.shape[:-1], 'wrong shapes'
         label_unsqueezed = label.unsqueeze(-2).repeat(1, self.K, 1)
         latent, log_det = self.T.forward(sample, label, return_log_det=True)
-        log_v = self.reference.log_prob(latent) + torch.diagonal(self.W.log_prob(torch.cat([latent, label_unsqueezed], dim=-1)),
-                                                            0, -2, -1) + log_det
+        log_v = self.reference.log_prob(latent) + torch.diagonal(
+            self.W.log_prob(torch.cat([latent, label_unsqueezed], dim=-1)),
+            0, -2, -1) + log_det
         return log_v - torch.logsumexp(log_v, dim=-1, keepdim=True)
 
     def sample_forward(self, sample, label):
@@ -136,9 +146,8 @@ class ConditionalDIFLayer(torch.nn.Module):
         pick = torch.distributions.Categorical(torch.exp(self.W.log_prob(torch.cat([latent, label], dim=-1)))).sample()
         return sample[range(sample.shape[0]), pick, :]
 
-
 class FlowConditionalDensityEstimation(torch.nn.Module):
-    def __init__(self, samples, labels, structure, estimate_reference=False):
+    def __init__(self, samples, labels, structure):
         super().__init__()
         self.samples = samples
         self.labels = labels
@@ -147,13 +156,8 @@ class FlowConditionalDensityEstimation(torch.nn.Module):
         self.structure = structure
         self.N = len(self.structure)
 
-        if estimate_reference:
-            self.reference_mean = torch.mean(samples, dim=0)
-            _ = torch.cov(samples.T)
-            self.reference_cov = ((_ + _.T) / 2).reshape(self.sample_dim, self.sample_dim)
-        else:
-            self.reference_mean = torch.zeros(self.sample_dim)
-            self.reference_cov = torch.eye(self.sample_dim)
+        self.reference_mean = torch.zeros(self.sample_dim)
+        self.reference_cov = torch.eye(self.sample_dim)
 
         self.model = [
             structure[-1][0](self.sample_dim, self.label_dim, self.reference_log_prob, **self.structure[-1][1])]
@@ -161,9 +165,14 @@ class FlowConditionalDensityEstimation(torch.nn.Module):
             self.model.insert(0, structure[i][0](self.sample_dim, self.label_dim, self.model[0].log_prob,
                                                  **structure[i][1]))
 
+    def initialize_with_EM(self, samples, epochs, verbose=True):
+        for model in self.model:
+            if isinstance(model, ConditionalDIFLayer):
+                model.initialize_with_EM(samples, epochs, verbose)
+                break
+
     def reference_log_prob(self, latents, labels):
-        return torch.distributions.MultivariateNormal(self.reference_mean.to(latents.device),
-                                                      self.reference_cov.to(latents.device)).log_prob(latents)
+        return -latents.shape[-1] * torch.log(torch.tensor(2 * math.pi)) / 2 - torch.sum(torch.square(latents), dim=-1)
 
     def compute_number_params(self):
         number_params = 0
@@ -229,3 +238,4 @@ class FlowConditionalDensityEstimation(torch.nn.Module):
             layer.to(torch.device('cpu'))
         if trace_loss:
             return loss_values
+
