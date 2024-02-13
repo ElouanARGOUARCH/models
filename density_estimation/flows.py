@@ -69,7 +69,7 @@ class RealNVPLayer(torch.nn.Module):
             m, log_s = torch.chunk(self.net(mask * z), 2, dim = -1)
             z = (z * torch.exp(log_s)+m)*(1 - mask) + (mask * z)
             if return_log_det:
-                log_det += torch.sum(log_s, dim=-1)
+                log_det += torch.sum(log_s*(1 - mask), dim=-1)
         if return_log_det:
             return z, log_det
         else:
@@ -144,6 +144,7 @@ class MAFLayer(torch.nn.Module):
     def log_prob(self, x):
         z,log_det = self.sample_forward(x, return_log_det=True)
         return self.reference_log_prob(z) + log_det
+
 class FlowDensityEstimation(torch.nn.Module):
     def __init__(self, target_samples,structure):
         super().__init__()
@@ -168,7 +169,7 @@ class FlowDensityEstimation(torch.nn.Module):
         return number_params
 
     def sample(self, num_samples):
-        z = torch.randn([num_samples, self.sample_dim])
+        z = torch.randn(num_samples + [self.sample_dim])
         for i in range(self.N - 1, -1, -1):
             z = self.model[i].sample_backward(z)
         return z

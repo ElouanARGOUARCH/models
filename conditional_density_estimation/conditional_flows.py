@@ -32,7 +32,7 @@ class ConditionalRealNVPDensityEstimationLayer(torch.nn.Module):
         for mask in reversed(self.mask):
             mask = mask.to(samples.device)
             m, log_s = torch.chunk(self.net(torch.cat([mask * latents, labels], dim=-1)), 2, dim=-1)
-            latents = (latents * (1 - mask) * torch.exp(log_s * (1 - mask)) + m * (1 - mask)) + (mask * latents)
+            latents = (latents*torch.exp(log_s) + m)*(1-mask) + (mask * latents)
             if return_log_det:
                 log_det += torch.sum(log_s * (1 - mask), dim=-1)
         if return_log_det:
@@ -45,7 +45,7 @@ class ConditionalRealNVPDensityEstimationLayer(torch.nn.Module):
         for mask in self.mask:
             mask = mask.to(latents.device)
             m, log_s = torch.chunk(self.net(torch.cat([samples * mask, labels], dim=-1)), 2, dim=-1)
-            samples = ((samples * (1 - mask) - m * (1 - mask)) / torch.exp(log_s * (1 - mask))) + (samples * mask)
+            samples = ((samples - m) / torch.exp(log_s))*(1-mask) + (samples * mask)
         return samples
 
     def log_prob(self, samples, labels):
