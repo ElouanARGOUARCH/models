@@ -77,7 +77,7 @@ class DIFLayer(torch.nn.Module):
         super().__init__()
         self.sample_dim = p
         self.K = kwargs['K']
-        self.w = SoftmaxWeight(self.K, self.sample_dim, kwargs['hidden_dims'])
+        self.W = SoftmaxWeight(self.K, self.sample_dim, kwargs['hidden_dims'])
         self.T = LocationScaleFlow(self.K, self.sample_dim)
 
         self.reference_log_prob = reference_log_prob
@@ -93,7 +93,7 @@ class DIFLayer(torch.nn.Module):
 
     def log_v(self,x):
         z = self.T.forward(x)
-        log_v = self.reference_log_prob(z) + torch.diagonal(self.w.log_prob(z), 0, -2, -1) + self.T.log_det_J(x)
+        log_v = self.reference_log_prob(z) + torch.diagonal(self.W.log_prob(z), 0, -2, -1) + self.T.log_det_J(x)
         return log_v - torch.logsumexp(log_v, dim = -1, keepdim= True)
 
     def sample_forward(self,x):
@@ -103,12 +103,12 @@ class DIFLayer(torch.nn.Module):
 
     def sample_backward(self, z):
         x = self.T.backward(z)
-        pick = torch.distributions.Categorical(torch.exp(self.w.log_prob(z))).sample()
+        pick = torch.distributions.Categorical(torch.exp(self.W.log_prob(z))).sample()
         return torch.stack([x[i,pick[i],:] for i in range(z.shape[0])])
 
     def log_prob(self, x):
         z = self.T.forward(x)
-        return torch.logsumexp(self.reference_log_prob(z) + torch.diagonal(self.w.log_prob(z),0,-2,-1) + self.T.log_det_J(x),dim=-1)
+        return torch.logsumexp(self.reference_log_prob(z) + torch.diagonal(self.W.log_prob(z),0,-2,-1) + self.T.log_det_J(x),dim=-1)
 
 class RealNVPLayer(torch.nn.Module):
     def __init__(self,sample_dim,reference_log_prob= None, **kwargs):
