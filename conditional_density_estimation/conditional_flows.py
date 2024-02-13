@@ -3,7 +3,7 @@ from tqdm import tqdm
 from density_estimation import SoftmaxWeight, DiagGaussianMixtEM
 import math
 
-class ConditionalRealNVPDensityEstimationLayer(torch.nn.Module):
+class ConditionalRealNVPLayer(torch.nn.Module):
     def __init__(self, sample_dim, label_dim, reference_log_prob, **kwargs):
         super().__init__()
         self.sample_dim = sample_dim
