@@ -85,14 +85,11 @@ class DIFLayer(torch.nn.Module):
     def initialize_with_EM(self, samples, epochs, verbose=False):
         em = DiagGaussianMixtEM(samples, self.K)
         em.train(epochs, verbose)
-        self.T.f[-1].weight = torch.nn.Parameter(
-            torch.zeros(self.T.network_dimensions[-1], self.T.network_dimensions[-2]))
-        self.T.f[-1].bias = torch.nn.Parameter(torch.cat([em.m, em.log_s], dim=-1).flatten())
+        self.T.m = torch.nn.Parameter(em.m)
+        self.T.log_s = torch.nn.Parameter(em.log_s)
         self.W.f[-1].weight = torch.nn.Parameter(
             torch.zeros(self.W.network_dimensions[-1], self.W.network_dimensions[-2]))
         self.W.f[-1].bias = torch.nn.Parameter(em.log_pi)
-        self.reference_mean = torch.zeros(self.sample_dim)
-        self.reference_cov = torch.eye(self.sample_dim)
 
     def log_v(self,x):
         z = self.T.forward(x)
