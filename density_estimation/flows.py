@@ -48,7 +48,7 @@ class RealNVPLayer(torch.nn.Module):
         super().__init__()
         self.sample_dim = sample_dim
         net = []
-        hs = [self.sample_dim] + kwargs['hidden_dim'] + [2*self.sample_dim]
+        hs = [self.sample_dim] + kwargs['hidden_dims'] + [2*self.sample_dim]
         for h0, h1 in zip(hs, hs[1:]):
             net.extend([
                 torch.nn.Linear(h0, h1),
@@ -65,8 +65,8 @@ class RealNVPLayer(torch.nn.Module):
         if return_log_det:
             log_det = torch.zeros(x.shape[:-1]).to(x.device)
         for mask in reversed(self.mask):
-            m, log_s = torch.chunk(self.net(mask * z)(1 - mask), 2, dim = -1)
-            z = (z*(1 - mask) * torch.exp(log_s)+m) + (mask * z)
+            m, log_s = torch.chunk(self.net(mask * z), 2, dim = -1)
+            z = (z * torch.exp(log_s)+m)*(1 - mask) + (mask * z)
             if return_log_det:
                 log_det += torch.sum(log_s, dim=-1)
         if return_log_det:
@@ -77,8 +77,8 @@ class RealNVPLayer(torch.nn.Module):
     def sample_backward(self, z):
         x = z
         for mask in self.mask:
-            m, log_s = torch.chunk(self.net(x*mask)(1 - mask), 2, dim = -1)
-            x = ((x*(1-mask) -m)/torch.exp(log_s)) + (x*mask)
+            m, log_s = torch.chunk(self.net(x*mask), 2, dim = -1)
+            x = ((x -m)/torch.exp(log_s))*(1 - mask) + (x*mask)
         return x
 
     def log_prob(self, x):
@@ -90,11 +90,11 @@ class MAFLayer(torch.nn.Module):
         super().__init__()
         self.sample_dim = sample_dim
         self.net = []
-        self.hidden_dims=kwargs['hidden_dims']
+        self.hidden_dims = kwargs['hidden_dims']
         self.reference_log_prob = reference_log_prob
         self.lr = 5e-5
 
-        hs = [self.sample_dim] + self.hidden_dims + [2*self.sample_dim]
+        hs = [self.sample_dim] + kwargs['hidden_dims']+ [2*self.sample_dim]
         for h0, h1 in zip(hs, hs[1:]):
             self.net.extend([
                 MaskedLinear(h0, h1),
@@ -119,7 +119,7 @@ class MAFLayer(torch.nn.Module):
         # set the masks in all MaskedLinear layers
         layers = [l for l in self.net.modules() if isinstance(l, MaskedLinear)]
         for l, m in zip(layers, masks):
-            l.set_mask(m.to(self.device))
+            l.set_mask(m)
 
 
     def sample_forward(self,x, return_log_det = True):
@@ -142,7 +142,6 @@ class MAFLayer(torch.nn.Module):
     def log_prob(self, x):
         z,log_det = self.sample_forward(x, return_log_det=True)
         return self.reference_log_prob(z) + log_det
-
 class FlowDensityEstimation(torch.nn.Module):
     def __init__(self, target_samples,structure):
         super().__init__()
@@ -167,7 +166,7 @@ class FlowDensityEstimation(torch.nn.Module):
         return number_params
 
     def sample(self, num_samples):
-        z = torch.distributions.MultivariateNormal(self.reference_mean, self.reference_cov).sample(num_samples)
+        z = torch.randn([num_samples, self.sample_dim])
         for i in range(self.N - 1, -1, -1):
             z = self.model[i].sample_backward(z)
         return z
@@ -221,4 +220,5 @@ class FlowDensityEstimation(torch.nn.Module):
             layer.to(torch.device('cpu'))
         if trace_loss:
             return loss_values
+
 
