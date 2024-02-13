@@ -1,6 +1,7 @@
 import torch
 from tqdm import tqdm
 from .discretely_indexed_flows import SoftmaxWeight, LocationScaleFlow
+from .gaussian_mixture_model import DiagGaussianMixtEM
 import math
 
 class MaskedLinear(torch.nn.Linear):
@@ -81,6 +82,18 @@ class DIFLayer(torch.nn.Module):
 
         self.reference_log_prob = reference_log_prob
 
+    def initialize_with_EM(self, samples, epochs, verbose=False):
+        em = DiagGaussianMixtEM(samples, self.K)
+        em.train(epochs, verbose)
+        self.T.f[-1].weight = torch.nn.Parameter(
+            torch.zeros(self.T.network_dimensions[-1], self.T.network_dimensions[-2]))
+        self.T.f[-1].bias = torch.nn.Parameter(torch.cat([em.m, em.log_s], dim=-1).flatten())
+        self.W.f[-1].weight = torch.nn.Parameter(
+            torch.zeros(self.W.network_dimensions[-1], self.W.network_dimensions[-2]))
+        self.W.f[-1].bias = torch.nn.Parameter(em.log_pi)
+        self.reference_mean = torch.zeros(self.sample_dim)
+        self.reference_cov = torch.eye(self.sample_dim)
+
     def log_v(self,x):
         z = self.T.forward(x)
         log_v = self.reference_log_prob(z) + torch.diagonal(self.w.log_prob(z), 0, -2, -1) + self.T.log_det_J(x)
@@ -157,6 +170,12 @@ class FlowDensityEstimation(torch.nn.Module):
         self.model = [structure[-1][0](self.sample_dim,self.reference_log_prob, **structure[-1][1])]
         for i in range(self.N - 2, -1, -1):
             self.model.insert(0, structure[i][0](self.sample_dim,self.model[0].log_prob, **structure[i][1]))
+
+    def initialize_with_EM(self, samples, epochs, verbose=True):
+        for model in self.model:
+            if isinstance(model, DIFLayer):
+                model.initialize_with_EM(samples, epochs, verbose)
+                break
 
     def reference_log_prob(self, latents):
         return -latents.shape[-1] * torch.log(torch.tensor(2 * math.pi)) / 2 - torch.sum(torch.square(latents), dim=-1)/2
