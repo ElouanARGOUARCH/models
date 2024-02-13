@@ -1,4 +1,6 @@
-from density_estimation import *
+import torch
+from tqdm import tqdm
+from density_estimation import SoftmaxWeight, DiagGaussianMixtEM
 import math
 
 class ConditionalRealNVPDensityEstimationLayer(torch.nn.Module):
@@ -172,7 +174,7 @@ class FlowConditionalDensityEstimation(torch.nn.Module):
                 break
 
     def reference_log_prob(self, latents, labels):
-        return -latents.shape[-1] * torch.log(torch.tensor(2 * math.pi)) / 2 - torch.sum(torch.square(latents), dim=-1)
+        return -latents.shape[-1] * torch.log(torch.tensor(2 * math.pi)) / 2 - torch.sum(torch.square(latents), dim=-1)/2
 
     def compute_number_params(self):
         number_params = 0

@@ -1,6 +1,7 @@
 import torch
 from tqdm import tqdm
 from .discretely_indexed_flows import SoftmaxWeight, LocationScaleFlow
+import math
 
 class MaskedLinear(torch.nn.Linear):
     def __init__(self, n_in: int, n_out: int, bias: bool = True) -> None:
@@ -14,44 +15,40 @@ class MaskedLinear(torch.nn.Linear):
         return torch.nn.functional.linear(x, self.mask * self.weight, self.bias)
 
 class DIFDensityEstimationLayer(torch.nn.Module):
-    def __init__(self,p, K,hidden_dims, q_log_prob):
+    def __init__(self,p,reference_log_prob = None,**kwargs):
         super().__init__()
-        self.p = p
-        self.K = K
+        self.sample_dim = p
+        self.K = kwargs['K']
+        self.w = SoftmaxWeight(self.K, self.sample_dim, kwargs['hidden_dims'])
+        self.T = LocationScaleFlow(self.K, self.sample_dim)
 
-        self.w = SoftmaxWeight(self.K, self.p, hidden_dims)
-        self.T = LocationScaleFlow(self.K, self.p)
-
-        self.q_log_prob = q_log_prob
+        self.reference_log_prob = reference_log_prob
 
     def log_v(self,x):
-        with torch.no_grad():
-            z = self.T.forward(x)
-            log_v = self.q_log_prob(z) + torch.diagonal(self.w.log_prob(z), 0, -2, -1) + self.T.log_det_J(x)
-            return log_v - torch.logsumexp(log_v, dim = -1, keepdim= True)
+        z = self.T.forward(x)
+        log_v = self.reference_log_prob(z) + torch.diagonal(self.w.log_prob(z), 0, -2, -1) + self.T.log_det_J(x)
+        return log_v - torch.logsumexp(log_v, dim = -1, keepdim= True)
 
     def sample_forward(self,x):
-        with torch.no_grad():
-            z = self.T.forward(x)
-            pick = torch.distributions.Categorical(torch.exp(self.log_v(x))).sample()
-            return torch.stack([z[i,pick[i],:] for i in range(z.shape[0])])
+        z = self.T.forward(x)
+        pick = torch.distributions.Categorical(torch.exp(self.log_v(x))).sample()
+        return torch.stack([z[i,pick[i],:] for i in range(z.shape[0])])
 
     def sample_backward(self, z):
-        with torch.no_grad():
-            x = self.T.backward(z)
-            pick = torch.distributions.Categorical(torch.exp(self.w.log_prob(z))).sample()
-            return torch.stack([x[i,pick[i],:] for i in range(z.shape[0])])
+        x = self.T.backward(z)
+        pick = torch.distributions.Categorical(torch.exp(self.w.log_prob(z))).sample()
+        return torch.stack([x[i,pick[i],:] for i in range(z.shape[0])])
 
     def log_prob(self, x):
         z = self.T.forward(x)
-        return torch.logsumexp(self.q_log_prob(z) + torch.diagonal(self.w.log_prob(z),0,-2,-1) + self.T.log_det_J(x),dim=-1)
+        return torch.logsumexp(self.reference_log_prob(z) + torch.diagonal(self.w.log_prob(z),0,-2,-1) + self.T.log_det_J(x),dim=-1)
 
 class RealNVPDensityEstimationLayer(torch.nn.Module):
-    def __init__(self,p,hidden_dim, q_log_prob):
+    def __init__(self,sample_dim,reference_log_prob= None, **kwargs):
         super().__init__()
-        self.p = p
+        self.sample_dim = sample_dim
         net = []
-        hs = [self.p] + hidden_dim + [2*self.p]
+        hs = [self.sample_dim] + kwargs['hidden_dim'] + [2*self.sample_dim]
         for h0, h1 in zip(hs, hs[1:]):
             net.extend([
                 torch.nn.Linear(h0, h1),
@@ -60,16 +57,15 @@ class RealNVPDensityEstimationLayer(torch.nn.Module):
         net.pop()
         self.net = torch.nn.Sequential(*net)
 
-        self.mask = [torch.cat([torch.zeros(int(self.p/2)), torch.ones(self.p - int(self.p/2))], dim = 0),torch.cat([torch.ones(int(self.p/2)), torch.zeros(self.p - int(self.p/2))], dim = 0)]
-        self.q_log_prob = q_log_prob
+        self.mask = [torch.cat([torch.zeros(int(self.sample_dim/2)), torch.ones(self.sample_dim - int(self.sample_dim/2))], dim = 0),torch.cat([torch.ones(int(self.sample_dim/2)), torch.zeros(self.sample_dim - int(self.sample_dim/2))], dim = 0)]
+        self.reference_log_prob = reference_log_prob
 
     def sample_forward(self,x, return_log_det = True):
         z = x
         if return_log_det:
             log_det = torch.zeros(x.shape[:-1]).to(x.device)
         for mask in reversed(self.mask):
-            out = self.net(mask * z)
-            m, log_s = out[...,:self.p]*(1 - mask),out[...,self.p:]*(1 - mask)
+            m, log_s = torch.chunk(self.net(mask * z)(1 - mask), 2, dim = -1)
             z = (z*(1 - mask) * torch.exp(log_s)+m) + (mask * z)
             if return_log_det:
                 log_det += torch.sum(log_s, dim=-1)
@@ -81,26 +77,24 @@ class RealNVPDensityEstimationLayer(torch.nn.Module):
     def sample_backward(self, z):
         x = z
         for mask in self.mask:
-            out = self.net(x*mask)
-            m, log_s = out[...,:self.p]* (1 - mask),out[...,self.p:]* (1 - mask)
+            m, log_s = torch.chunk(self.net(x*mask)(1 - mask), 2, dim = -1)
             x = ((x*(1-mask) -m)/torch.exp(log_s)) + (x*mask)
         return x
 
     def log_prob(self, x):
         z,log_det = self.sample_forward(x, return_log_det=True)
-        return self.q_log_prob(z) + log_det
+        return self.reference_log_prob(z) + log_det
 
 class MAFDensityEstimationLayer(torch.nn.Module):
-    def __init__(self,p,hidden_dims, q_log_prob):
+    def __init__(self,sample_dim,reference_log_prob=None, **kwargs):
         super().__init__()
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.p = p
+        self.sample_dim = sample_dim
         self.net = []
-        self.hidden_dims=hidden_dims
-        self.q_log_prob = q_log_prob
+        self.hidden_dims=kwargs['hidden_dims']
+        self.reference_log_prob = reference_log_prob
         self.lr = 5e-5
 
-        hs = [self.p] + self.hidden_dims + [2*self.p]
+        hs = [self.sample_dim] + self.hidden_dims + [2*self.sample_dim]
         for h0, h1 in zip(hs, hs[1:]):
             self.net.extend([
                 MaskedLinear(h0, h1),
@@ -114,9 +108,9 @@ class MAFDensityEstimationLayer(torch.nn.Module):
 
     def update_masks(self):
         L = len(self.hidden_dims)
-        self.m[-1] = torch.randperm(self.p)
+        self.m[-1] = torch.randperm(self.sample_dim)
         for l in range(L):
-            self.m[l] = torch.randint(torch.min(self.m[l - 1]), self.p - 1, [self.hidden_dims[l]])
+            self.m[l] = torch.randint(torch.min(self.m[l - 1]), self.sample_dim - 1, [self.hidden_dims[l]])
 
         masks = [self.m[l - 1][:, None] <= self.m[l][None, :] for l in range(L)]
         masks.append(self.m[L - 1][:, None] < self.m[-1][None, :])
@@ -129,8 +123,7 @@ class MAFDensityEstimationLayer(torch.nn.Module):
 
 
     def sample_forward(self,x, return_log_det = True):
-        out = self.net(x)
-        m, log_s = out[...,self.p:],out[...,:self.p]
+        m, log_s  = torch.chunk(self.net(x),2, dim = -1)
         log_s = torch.clamp(log_s, max=10)
         if return_log_det:
             return m + torch.exp(log_s)*x, torch.sum(log_s, dim = -1)
@@ -140,8 +133,7 @@ class MAFDensityEstimationLayer(torch.nn.Module):
     def sample_backward(self,z):
         x = torch.zeros_like(z)
         for i in self.m[-1]:
-            out = self.net(x)
-            m, log_s = out[..., self.p:], out[..., :self.p]
+            m, log_s = torch.chunk(self.net(x), 2, dim = -1)
             log_s = torch.clamp(log_s, max=10)
             temp = (z - m)/torch.exp(log_s)
             x[:,i] = temp[:,i]
@@ -149,32 +141,24 @@ class MAFDensityEstimationLayer(torch.nn.Module):
 
     def log_prob(self, x):
         z,log_det = self.sample_forward(x, return_log_det=True)
-        return self.q_log_prob(z) + log_det
+        return self.reference_log_prob(z) + log_det
 
 class FlowDensityEstimation(torch.nn.Module):
-    def __init__(self, target_samples,structure, estimate_reference = False):
+    def __init__(self, target_samples,structure):
         super().__init__()
         self.target_samples = target_samples
-        self.p = self.target_samples.shape[-1]
+        self.sample_dim = self.target_samples.shape[-1]
         self.structure = structure
         self.N = len(self.structure)
 
-        if estimate_reference:
-            self.reference_mean = torch.mean(target_samples,dim = 0)
-            _ = torch.cov(self.target_samples.T)
-            self.reference_cov = ((_ + _.T)/2).reshape(self.p, self.p)
-        else:
-            self.reference_mean = torch.zeros(self.p)
-            self.reference_cov = torch.eye(self.p)
-
         self.w = torch.distributions.Dirichlet(torch.ones(target_samples.shape[0])).sample()
 
-        self.model = [structure[-1][0](self.p,self.structure[-1][1], q_log_prob= self.reference_log_prob)]
+        self.model = [structure[-1][0](self.sample_dim,self.reference_log_prob, **structure[-1][1])]
         for i in range(self.N - 2, -1, -1):
-            self.model.insert(0, structure[i][0](self.p, structure[i][1], q_log_prob=self.model[0].log_prob))
+            self.model.insert(0, structure[i][0](self.sample_dim,self.model[0].log_prob, **structure[i][1]))
 
-    def reference_log_prob(self,z):
-        return torch.distributions.MultivariateNormal(self.reference_mean.to(z.device), self.reference_cov.to(z.device)).log_prob(z)
+    def reference_log_prob(self, latents):
+        return -latents.shape[-1] * torch.log(torch.tensor(2 * math.pi)) / 2 - torch.sum(torch.square(latents), dim=-1)/2
 
     def compute_number_params(self):
         number_params = 0
