@@ -8,13 +8,13 @@ class MaskedLinear(torch.nn.Linear):
         super().__init__(n_in, n_out, bias)
         self.mask = None
 
-    def initialise_mask(self, mask):
+    def set_mask(self, mask):
         self.mask = mask
 
     def forward(self, x):
         return torch.nn.functional.linear(x, self.mask * self.weight, self.bias)
 
-class DIFDensityEstimationLayer(torch.nn.Module):
+class DIFLayer(torch.nn.Module):
     def __init__(self,p,reference_log_prob = None,**kwargs):
         super().__init__()
         self.sample_dim = p
@@ -43,7 +43,7 @@ class DIFDensityEstimationLayer(torch.nn.Module):
         z = self.T.forward(x)
         return torch.logsumexp(self.reference_log_prob(z) + torch.diagonal(self.w.log_prob(z),0,-2,-1) + self.T.log_det_J(x),dim=-1)
 
-class RealNVPDensityEstimationLayer(torch.nn.Module):
+class RealNVPLayer(torch.nn.Module):
     def __init__(self,sample_dim,reference_log_prob= None, **kwargs):
         super().__init__()
         self.sample_dim = sample_dim
@@ -85,7 +85,7 @@ class RealNVPDensityEstimationLayer(torch.nn.Module):
         z,log_det = self.sample_forward(x, return_log_det=True)
         return self.reference_log_prob(z) + log_det
 
-class MAFDensityEstimationLayer(torch.nn.Module):
+class MAFLayer(torch.nn.Module):
     def __init__(self,sample_dim,reference_log_prob=None, **kwargs):
         super().__init__()
         self.sample_dim = sample_dim
