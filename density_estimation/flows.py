@@ -65,6 +65,7 @@ class RealNVPLayer(torch.nn.Module):
         if return_log_det:
             log_det = torch.zeros(x.shape[:-1]).to(x.device)
         for mask in reversed(self.mask):
+            mask = mask.to(x.device)
             m, log_s = torch.chunk(self.net(mask * z), 2, dim = -1)
             z = (z * torch.exp(log_s)+m)*(1 - mask) + (mask * z)
             if return_log_det:
@@ -77,6 +78,7 @@ class RealNVPLayer(torch.nn.Module):
     def sample_backward(self, z):
         x = z
         for mask in self.mask:
+            mask = mask.to(z.device)
             m, log_s = torch.chunk(self.net(x*mask), 2, dim = -1)
             x = ((x -m)/torch.exp(log_s))*(1 - mask) + (x*mask)
         return x
