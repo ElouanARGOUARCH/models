@@ -9,10 +9,67 @@ class MaskedLinear(torch.nn.Linear):
         self.mask = None
 
     def set_mask(self, mask):
-        self.mask = mask
+        self.mask = mask.T
 
     def forward(self, x):
-        return torch.nn.functional.linear(x, self.mask * self.weight, self.bias)
+        return torch.nn.functional.linear(x, self.mask.to(x.device) * self.weight, self.bias)
+
+class MAFLayer(torch.nn.Module):
+    def __init__(self,sample_dim,reference_log_prob=None, **kwargs):
+        super().__init__()
+        self.sample_dim = sample_dim
+        self.net = []
+        self.hidden_dims=kwargs['hidden_dims']
+        self.reference_log_prob = reference_log_prob
+        self.lr = 5e-5
+
+        hs = [self.sample_dim] + self.hidden_dims + [2*self.sample_dim]
+        for h0, h1 in zip(hs, hs[1:]):
+            self.net.extend([
+                MaskedLinear(h0, h1),
+                torch.nn.Tanh(),
+            ])
+        self.net.pop()
+        self.net = torch.nn.Sequential(*self.net)
+
+        self.m = {}
+        self.update_masks()
+
+    def update_masks(self):
+        L = len(self.hidden_dims)
+        self.m[-1] = torch.randperm(self.sample_dim)
+        for l in range(L):
+            self.m[l] = torch.randint(torch.min(self.m[l - 1]), self.sample_dim - 1, [self.hidden_dims[l]])
+
+        masks = [self.m[l - 1][:, None] <= self.m[l][None, :] for l in range(L)]
+        masks.append(self.m[L - 1][:, None] < self.m[-1][None, :])
+        masks[-1] = masks[-1].repeat(1, 2)
+
+        layers = [l for l in self.net.modules() if isinstance(l, MaskedLinear)]
+        for l, m in zip(layers, masks):
+            l.set_mask(m)
+
+
+    def sample_forward(self,x, return_log_det = True):
+        m, log_s  = torch.chunk(self.net(x),2, dim = -1)
+        log_s = torch.clamp(log_s, max=10)
+        if return_log_det:
+            return m + torch.exp(log_s)*x, torch.sum(log_s, dim = -1)
+        else:
+            return m + torch.exp(log_s)*x
+
+    def sample_backward(self,z):
+        x = torch.zeros_like(z)
+        for i in self.m[-1]:
+            m, log_s = torch.chunk(self.net(x), 2, dim = -1)
+            log_s = torch.clamp(log_s, max=10)
+            temp = (z - m)/torch.exp(log_s)
+            x[:,i] = temp[:,i]
+        return x
+
+    def log_prob(self, x):
+        z,log_det = self.sample_forward(x, return_log_det=True)
+        return self.reference_log_prob(z) + log_det
 
 class DIFLayer(torch.nn.Module):
     def __init__(self,p,reference_log_prob = None,**kwargs):
@@ -81,64 +138,6 @@ class RealNVPLayer(torch.nn.Module):
             mask = mask.to(z.device)
             m, log_s = torch.chunk(self.net(x*mask), 2, dim = -1)
             x = ((x -m)/torch.exp(log_s))*(1 - mask) + (x*mask)
-        return x
-
-    def log_prob(self, x):
-        z,log_det = self.sample_forward(x, return_log_det=True)
-        return self.reference_log_prob(z) + log_det
-
-class MAFLayer(torch.nn.Module):
-    def __init__(self,sample_dim,reference_log_prob=None, **kwargs):
-        super().__init__()
-        self.sample_dim = sample_dim
-        self.net = []
-        self.hidden_dims = kwargs['hidden_dims']
-        self.reference_log_prob = reference_log_prob
-        self.lr = 5e-5
-
-        hs = [self.sample_dim] + kwargs['hidden_dims']+ [2*self.sample_dim]
-        for h0, h1 in zip(hs, hs[1:]):
-            self.net.extend([
-                MaskedLinear(h0, h1),
-                torch.nn.Tanh(),
-            ])
-        self.net.pop()
-        self.net = torch.nn.Sequential(*self.net)
-
-        self.m = {}
-        self.update_masks()
-
-    def update_masks(self):
-        L = len(self.hidden_dims)
-        self.m[-1] = torch.randperm(self.sample_dim)
-        for l in range(L):
-            self.m[l] = torch.randint(torch.min(self.m[l - 1]), self.sample_dim - 1, [self.hidden_dims[l]])
-
-        masks = [self.m[l - 1][:, None] <= self.m[l][None, :] for l in range(L)]
-        masks.append(self.m[L - 1][:, None] < self.m[-1][None, :])
-        masks[-1] = masks[-1].repeat(1, 2)
-
-        # set the masks in all MaskedLinear layers
-        layers = [l for l in self.net.modules() if isinstance(l, MaskedLinear)]
-        for l, m in zip(layers, masks):
-            l.set_mask(m)
-
-
-    def sample_forward(self,x, return_log_det = True):
-        m, log_s  = torch.chunk(self.net(x),2, dim = -1)
-        log_s = torch.clamp(log_s, max=10)
-        if return_log_det:
-            return m + torch.exp(log_s)*x, torch.sum(log_s, dim = -1)
-        else:
-            return m + torch.exp(log_s)*x
-
-    def sample_backward(self,z):
-        x = torch.zeros_like(z)
-        for i in self.m[-1]:
-            m, log_s = torch.chunk(self.net(x), 2, dim = -1)
-            log_s = torch.clamp(log_s, max=10)
-            temp = (z - m)/torch.exp(log_s)
-            x[:,i] = temp[:,i]
         return x
 
     def log_prob(self, x):
@@ -223,5 +222,3 @@ class FlowDensityEstimation(torch.nn.Module):
             layer.to(torch.device('cpu'))
         if trace_loss:
             return loss_values
-
-
