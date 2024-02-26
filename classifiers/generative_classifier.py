@@ -96,7 +96,10 @@ class GenerativeClassifier(torch.nn.Module):
 
     def train(self, epochs,batch_size=None, lr = 5e-3, weight_decay = 5e-5, verbose = False, unlabeled_samples = None, unlabeled_labels = None, test_samples = None, test_labels = None,trace_accuracy = False):
         w = torch.distributions.Dirichlet(torch.ones(self.samples.shape[0])).sample()
-        optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay = weight_decay)
+        para_dict = []
+        for model in self.conditional_model.model:
+            para_dict.insert(-1, {'params': model.parameters(), 'lr': lr, 'weight_decay': weight_decay})
+        optimizer = torch.optim.Adam(para_dict)
         if batch_size is None:
             batch_size = self.samples.shape[0]
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
