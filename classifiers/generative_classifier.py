@@ -78,13 +78,13 @@ class GenerativeClassifier(torch.nn.Module):
         self.num_labels = labels.shape[-1]
         self.conditional_model = FlowConditionalDensityEstimation(samples, labels, structure=structure)
         if prior_probs is None:
-            self.prior_log_probs = torch.log(torch.ones(self.K)/self.K)
+            self.prior_log_probs = torch.log(torch.ones(self.num_labels)/self.num_labels)
         else:
             self.prior_log_probs = torch.log(prior_probs)
 
     def log_prob(self, samples):
-        augmented_samples = samples.unsqueeze(-2).repeat(1,self.K,1).to(samples.device)
-        augmented_labels = torch.eye(self.K).unsqueeze(0).repeat(samples.shape[0],1,1).to(samples.device)
+        augmented_samples = samples.unsqueeze(-2).repeat(1,self.num_labels,1).to(samples.device)
+        augmented_labels = torch.eye(self.num_labels).unsqueeze(0).repeat(samples.shape[0],1,1).to(samples.device)
         temp = self.conditional_model.log_prob(augmented_samples,augmented_labels) + self.prior_log_probs.unsqueeze(0).repeat(samples.shape[0],1).to(samples.device)
         return temp - torch.logsumexp(temp, dim = 1, keepdim= True)
 
