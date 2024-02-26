@@ -70,13 +70,13 @@ class GenerativeClassifierSemiSupervised(torch.nn.Module):
         return train_accuracy_trace, unlabeled_accuracy_trace, test_accuracy_trace
 
 class GenerativeClassifier(torch.nn.Module):
-    def __init__(self,samples, labels, hidden_dims = [], prior_probs = None, K = 10):
+    def __init__(self,samples, labels, structure = [], prior_probs = None):
         super().__init__()
         self.samples = samples
-        self.p = samples.shape[-1]
+        self.sample_dim = samples.shape[-1]
         self.labels = labels
-        self.K = labels.shape[-1]
-        self.conditional_model = ConditionalDIF(samples, labels, K, hidden_dims)
+        self.num_labels = labels.shape[-1]
+        self.conditional_model = FlowConditionalDensityEstimation(samples, labels, structure=structure)
         if prior_probs is None:
             self.prior_log_probs = torch.log(torch.ones(self.K)/self.K)
         else:
