@@ -1,6 +1,12 @@
 import torch
 import torchvision.datasets as datasets
 
+def shuffle(tensor, randperm=None):
+    if randperm is None:
+        randperm = torch.randperm(tensor.shape[0])
+    return tensor[randperm], randperm
+
+
 def get_MNIST_dataset(one_hot = False,repository = 'C:\\Users\\Elouan\\PycharmProjects\\models\\targets\\data'):
     mnist_trainset = datasets.MNIST(root=repository, train=True,
                                     download=True, transform=None)
