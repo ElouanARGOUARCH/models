@@ -128,7 +128,7 @@ class GenerativeClassifier(torch.nn.Module):
                     test_accuracy = compute_accuracy(self.log_prob(test_samples), test_labels)
                     test_accuracy_trace.append(test_accuracy.item())
 
-                pbar.set_postfix_str('loss = ' + str(round(iteration_loss, 4)) + '; device = ' + str(
+                    pbar.set_postfix_str('loss = ' + str(round(iteration_loss, 4)) + '; device = ' + str(
                         device) + '; train_acc = ' + str(train_accuracy) + '; unlab_acc = ' + str(
                         unlabeled_accuracy) + '; test_acc= ' + str(test_accuracy))
         return train_accuracy_trace, unlabeled_accuracy_trace, test_accuracy_trace
