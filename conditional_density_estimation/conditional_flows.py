@@ -167,6 +167,12 @@ class FlowConditionalDensityEstimation(torch.nn.Module):
             self.model.insert(0, structure[i][0](self.sample_dim, self.label_dim, self.model[0].log_prob,
                                                  **structure[i][1]))
 
+    def compute_number_params(self):
+        number_params = 0
+        for model in self.model:
+            number_params += sum(p.numel() for p in model.parameters() if p.requires_grad)
+        return number_params
+
     def initialize_with_EM(self, samples, epochs, verbose=True):
         for model in self.model:
             if isinstance(model, ConditionalDIFLayer):

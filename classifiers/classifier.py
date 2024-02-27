@@ -65,6 +65,9 @@ class Classifier(torch.nn.Module):
             network.extend([torch.nn.Linear(h0, h1),torch.nn.Tanh(),])
         self.f = torch.nn.Sequential(*network)
 
+    def compute_number_params(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
     def log_prob(self, samples):
         temp = self.f.forward(samples)
         return temp - torch.logsumexp(temp, dim = -1, keepdim=True)

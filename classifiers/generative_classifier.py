@@ -82,6 +82,12 @@ class GenerativeClassifier(torch.nn.Module):
         else:
             self.prior_log_probs = torch.log(prior_probs)
 
+    def compute_number_params(self):
+        return self.conditional_model.compute_number_params()
+
+    def compute_number_params(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
     def to(self, device):
         for model in self.conditional_model.model:
             model.to(device)
