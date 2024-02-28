@@ -26,10 +26,10 @@ class GenerativeClassifierSemiSupervised(torch.nn.Module):
         return self.conditional_model.log_prob(augmented_samples, augmented_labels)
 
     def loss(self, samples, labels):
-        return -torch.sum(torch.sum(self.log_prob(samples) * labels, dim=-1))
+        return -torch.sum(self.log_prob(samples)* labels)
 
-    def train(self, epochs, batch_size=None, lr=5e-3, weight_decay=5e-5, unlabeled_samples=None, unlabeled_labels=None,
-              test_samples=None, test_labels=None):
+    def train(self, epochs, batch_size=None, unlabeled_samples=None, unlabeled_labels=None,
+              test_samples=None, test_labels=None, recording_frequency = 1, lr=5e-3, weight_decay=5e-5):
         self.conditional_model.initialize_with_EM(torch.cat([self.samples, unlabeled_samples], dim=0), 50)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
@@ -53,7 +53,7 @@ class GenerativeClassifierSemiSupervised(torch.nn.Module):
                 loss = self.loss(batch[0].to(device), batch[1].to(device))
                 loss.backward()
                 optimizer.step()
-            if __ % 10 == 0:
+            if __ % recording_frequency == 0 or __<100:
                 with torch.no_grad():
                     self.to(torch.device('cpu'))
                     iteration_loss = torch.tensor(
@@ -82,12 +82,6 @@ class GenerativeClassifier(torch.nn.Module):
         else:
             self.prior_log_probs = torch.log(prior_probs)
 
-    def compute_number_params(self):
-        return self.conditional_model.compute_number_params()
-
-    def compute_number_params(self):
-        return sum(p.numel() for p in self.parameters() if p.requires_grad)
-
     def to(self, device):
         for model in self.conditional_model.model:
             model.to(device)
@@ -102,7 +96,7 @@ class GenerativeClassifier(torch.nn.Module):
 
     def train(self, epochs, batch_size=None, unlabeled_samples=None, unlabeled_labels=None,
               test_samples=None, test_labels=None, recording_frequency = 1, lr=5e-3, weight_decay=5e-5):
-        self.conditional_model.initialize_with_EM(self.samples, 50)
+        self.conditional_model.initialize_with_EM(self.samples, 50, verbose=True)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
         para_dict = []
@@ -113,6 +107,7 @@ class GenerativeClassifier(torch.nn.Module):
         train_accuracy_trace = []
         unlabeled_accuracy_trace = []
         test_accuracy_trace = []
+        indices = []
         pbar = tqdm(range(epochs))
         for __ in pbar:
             self.to(device)
@@ -122,7 +117,7 @@ class GenerativeClassifier(torch.nn.Module):
                 loss = self.loss(batch[0].to(device), batch[1].to(device))
                 loss.backward()
                 optimizer.step()
-            if __ % recording_frequency == 0:
+            if __ % recording_frequency == 0 or __<100:
                 with torch.no_grad():
                     self.to(torch.device('cpu'))
                     iteration_loss = torch.tensor(
@@ -133,8 +128,8 @@ class GenerativeClassifier(torch.nn.Module):
                     unlabeled_accuracy_trace.append(unlabeled_accuracy.item())
                     test_accuracy = compute_accuracy(self.log_prob(test_samples), test_labels)
                     test_accuracy_trace.append(test_accuracy.item())
-
+                    indices.append(__)
                     pbar.set_postfix_str('loss = ' + str(round(iteration_loss, 4)) + '; device = ' + str(
                         device) + '; train_acc = ' + str(train_accuracy) + '; unlab_acc = ' + str(
                         unlabeled_accuracy) + '; test_acc= ' + str(test_accuracy))
-        return train_accuracy_trace, unlabeled_accuracy_trace, test_accuracy_trace
+        return train_accuracy_trace, unlabeled_accuracy_trace, test_accuracy_trace, indices
