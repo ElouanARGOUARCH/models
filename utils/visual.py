@@ -80,7 +80,7 @@ def plot_2d_function(f,range = [[-10,10],[-10,10]], bins = [50,50], alpha = 0.7,
     if show:
         plt.show()
 
-def plot_2d_contour(f,range = [[-10,10],[-10,10]], bins = [50,50], alpha = 0.7,show = True):
+def plot_2d_contour(f,range = [[-10,10],[-10,10]], bins = [50,50], alpha = 0.7,show = True ):
     with torch.no_grad():
         tt_x = torch.linspace(range[0][0], range[0][1], bins[0])
         tt_y = torch.linspace(range[1][0],range[1][1], bins[1])

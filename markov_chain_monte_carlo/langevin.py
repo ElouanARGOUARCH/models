@@ -1,7 +1,7 @@
 import torch
 from tqdm import tqdm
 
-class UnadjustedLangevin(torch.nn.Module):
+class Langevin(torch.nn.Module):
     def __init__(self, target_log_density, d,proposal_distribution=None, number_chains=1):
         super().__init__()
         self.target_log_density = target_log_density
@@ -19,8 +19,9 @@ class UnadjustedLangevin(torch.nn.Module):
         return x + tau * grad + (2 * tau) ** (1 / 2) * torch.randn(x.shape)
 
 
-    def sample(self, number_steps, tau=0.001, verbose = False):
-        x = self.proposal_distribution.sample([self.number_chains])
+    def sample_ULA(self, number_steps, tau=0.001, verbose = False, x= None):
+        if x is None:
+            x = self.proposal_distribution.sample([self.number_chains])
         x.requires_grad_()
         if verbose:
             pbar = tqdm(range(number_steps))
@@ -29,17 +30,6 @@ class UnadjustedLangevin(torch.nn.Module):
         for _ in pbar:
             x = self.unadjusted_langevin_step(x,tau)
         return x
-
-class MetropolisAdjustedLangevin(torch.nn.Module):
-    def __init__(self, target_log_density, d,proposal_distribution=None, number_chains=1):
-        super().__init__()
-        self.target_log_density = target_log_density
-        self.d = d
-        if proposal_distribution is None:
-            self.proposal_distribution = torch.distributions.MultivariateNormal(torch.zeros(self.d), torch.eye(self.d))
-        else:
-            self.proposal_distribution = proposal_distribution
-        self.number_chains = number_chains
 
     def log_Q(self, x,x_prime, tau):
         u = torch.sum(self.target_log_density(x))
@@ -59,8 +49,9 @@ class MetropolisAdjustedLangevin(torch.nn.Module):
         x = (mask) * x_prime + (1 - (mask)) * x
         return x,mask
 
-    def sample(self, number_steps, tau=0.01, verbose = True):
-        x = self.proposal_distribution.sample([self.number_chains])
+    def sample_MALA(self, number_steps, tau=0.01, verbose = True, x = None):
+        if x is None:
+            x = self.proposal_distribution.sample([self.number_chains])
         x.requires_grad_()
         if verbose:
             pbar = tqdm(range(number_steps))

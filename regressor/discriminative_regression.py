@@ -75,13 +75,6 @@ class discriminative_bayesian_affine_regression:
         sigma2_x0_given_y0_beta = sigma2
         return mu_x0_given_y0_beta, sigma2_x0_given_y0_beta
 
-    def compute_x0_given_y0_D_moments(self,y0, DX,DY):
-        assert y0.shape[0]==1, 'Discriminative does not support multiple observations'
-        mu_beta_given_D, sigma2_beta_given_D = self.compute_beta_given_D_moments(DX, DY)
-        mu_x0_given_y0_D = mu_beta_given_D@torch.cat([y0,torch.ones_like(y0)], dim = -1)
-        sigma2_x0_given_y0_D = torch.cat([y0,torch.ones_like(y0)], dim = -1)@sigma2_beta_given_D@torch.cat([y0,torch.ones_like(y0)], dim = -1) + self.sigma2_simulateur
-        return mu_x0_given_y0_D, sigma2_x0_given_y0_D.squeeze(-1)
-
     def compute_sigma2_given_beta_D_parameters(self, beta, DX, DY):
         assert DX.shape[0] == DY.shape[0], 'Mismatch in number samples'
         temp = torch.cat([DY.unsqueeze(-1), torch.ones(DY.shape[0], 1)], dim=-1)
@@ -106,12 +99,10 @@ class discriminative_bayesian_affine_regression:
         for _ in pbar:
             mean_x0_given_y0_beta_sigma2, sigma2_x0_given_y0_beta_sigma2 = self.compute_x0_given_y0_beta_sigma2_moments(
                 y0, current_beta, current_sigma2)
-            #current_x0 = torch.distributions.Normal(mean_x0_given_y0_beta_sigma2,torch.sqrt(sigma2_x0_given_y0_beta_sigma2)).sample()
             current_x0 = (mean_x0_given_y0_beta_sigma2 + torch.sqrt(sigma2_x0_given_y0_beta_sigma2)*torch.randn(1)).squeeze(-1)
             current_labels = []
             for yj in Y:
-                mu_xj_given_yj_beta_sigma2,sigma2_xj_given_yj_beta_sigma2  = self.compute_x0_given_y0_beta_sigma2_moments(yj, current_beta, current_sigma2)
-                #current_label = torch.distributions.Normal(mu_xj_given_yj_beta_sigma2,torch.sqrt(sigma2_xj_given_yj_beta_sigma2)).sample()
+                mu_xj_given_yj_beta_sigma2,sigma2_xj_given_yj_beta_sigma2 = self.compute_x0_given_y0_beta_sigma2_moments(yj, current_beta, current_sigma2)
                 current_label = (mu_xj_given_yj_beta_sigma2 + torch.sqrt(sigma2_xj_given_yj_beta_sigma2)*torch.randn(1)).squeeze(-1)
                 current_labels.append(current_label.repeat(yj.shape[0]))
             if torch.flatten(Y).shape[0] > 0:
@@ -120,7 +111,6 @@ class discriminative_bayesian_affine_regression:
                 DXplus = torch.cat([DX, current_x0.repeat(y0.shape[0])])
             mean_beta_given_Dplus, Sigma_beta_given_Dplus = self.compute_beta_given_sigma2_D_moments(current_sigma2,
                                                                                                      DXplus, DYplus)
-            #current_beta = torch.distributions.MultivariateNormal(mean_beta_given_Dplus,Sigma_beta_given_Dplus).sample()
             current_beta = (mean_beta_given_Dplus + torch.linalg.cholesky(Sigma_beta_given_Dplus)@torch.randn(2)).squeeze(-1)
             current_sigma2 = self.compute_sigma2_given_beta_D_parameters(current_beta, DXplus, DYplus)
             list_x0_gibbs.append(current_x0)
