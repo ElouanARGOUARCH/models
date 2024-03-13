@@ -28,7 +28,7 @@ class Langevin(torch.nn.Module):
         else:
             pbar = range(number_steps)
         for _ in pbar:
-            x = self.unadjusted_langevin_step(x,tau)
+            x = self.unadjusted_step(x,tau)
         return x
 
     def log_Q(self, x,x_prime, tau):
