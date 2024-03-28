@@ -57,4 +57,7 @@ def get_WineQuality_Dataset(one_hot = False):
     wine_quality = fetch_ucirepo(id=186)
     samples = wine_quality.data.features
     labels = wine_quality.data.targets
-    return torch.tensor(samples), torch.tensor(labels)
+    if one_hot:
+        return torch.tensor(samples), torch.nn.functional.one_hot(torch.tensor(labels))
+    else:
+        return torch.tensor(samples),torch.tensor(labels)

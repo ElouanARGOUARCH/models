@@ -16,7 +16,7 @@ class Langevin(torch.nn.Module):
     def unadjusted_step(self,x, tau):
         u = torch.sum(self.target_log_density(x))
         grad = torch.autograd.grad(u,x)[0]
-        return x + tau * grad + (2 * tau) ** (1 / 2) * torch.randn(x.shape)
+        return x + tau * grad + ((2 * tau) ** (1 / 2)) * torch.randn(x.shape)
 
 
     def sample_ULA(self, number_steps, tau=0.001, verbose = False, x= None):
