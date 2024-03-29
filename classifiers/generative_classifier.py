@@ -77,6 +77,9 @@ class GenerativeClassifierSemiSupervised(torch.nn.Module):
         augmented_labels = torch.eye(self.C).unsqueeze(0).repeat(samples.shape[0], 1, 1).to(samples.device)
         return self.conditional_model.log_prob(augmented_samples, augmented_labels)
 
+    def log_posterior_prob(self, samples, prior):
+        return torch.softmax(self.log_prob(samples) + torch.log(prior.unsqueeze(0)), dim=-1)
+
     def loss(self, samples, labels):
         return -torch.sum(self.log_prob(samples)* labels)
 
