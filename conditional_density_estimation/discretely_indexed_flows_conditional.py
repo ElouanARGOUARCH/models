@@ -74,6 +74,9 @@ class ConditionalDIF(torch.nn.Module):
 
         self.T = ConditionalLocationScale(self.K, self.p, self.d, hidden_dimensions)
 
+    def compute_number_params(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
     def initialize_with_EM(self, epochs, verbose = False):
         em = DiagGaussianMixtEM(self.D_x,self.K)
         em.train(epochs, verbose)

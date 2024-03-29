@@ -17,6 +17,9 @@ class BinaryClassifier(torch.nn.Module):
         self.logit_r = torch.nn.Sequential(*network)
         self.w = torch.distributions.Dirichlet(torch.ones(self.label_0_samples.shape[0] + self.label_1_samples.shape[0])).sample()
 
+    def compute_number_params(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
     def loss(self, samples, labels, w):
         label_0_samples = samples[labels == 0]
         label_0_w = w[labels == 0]
@@ -64,6 +67,9 @@ class Classifier(torch.nn.Module):
         for h0, h1 in zip(self.network_dimensions, self.network_dimensions[1:]):
             network.extend([torch.nn.Linear(h0, h1), torch.nn.Tanh(), ])
         self.f = torch.nn.Sequential(*network)
+
+    def compute_number_params(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
     def log_prob(self, samples):
         temp = self.f.forward(samples)

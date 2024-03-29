@@ -65,6 +65,9 @@ class GenerativeClassifierSemiSupervised(torch.nn.Module):
         else:
             self.prior_log_probs = torch.log(prior_probs)
 
+    def compute_number_params(self):
+        return self.conditional_model.compute_number_params()
+
     def to(self, device):
         for model in self.conditional_model.model:
             model.to(device)
@@ -131,6 +134,9 @@ class GenerativeClassifier(torch.nn.Module):
         else:
             self.prior_log_probs = torch.log(prior_probs)
 
+    def compute_number_params(self):
+        return self.conditional_model.compute_number_params()
+
     def to(self, device):
         for model in self.conditional_model.model:
             model.to(device)
@@ -139,6 +145,9 @@ class GenerativeClassifier(torch.nn.Module):
         augmented_samples = samples.unsqueeze(-2).repeat(1, self.C, 1).to(samples.device)
         augmented_labels = torch.eye(self.C).unsqueeze(0).repeat(samples.shape[0], 1, 1).to(samples.device)
         return self.conditional_model.log_prob(augmented_samples, augmented_labels)
+
+    def log_posterior_prob(self, samples, prior):
+        return torch.softmax(self.log_prob(samples) + torch.log(prior.unsqueeze(0)), dim=-1)
 
     def loss(self, samples, labels):
         return -torch.sum(self.conditional_model.log_prob(samples, labels))

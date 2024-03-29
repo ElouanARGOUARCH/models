@@ -20,6 +20,9 @@ class NeuralLikelihoodRatio(torch.nn.Module):
         network.pop()
         self.logit_r = torch.nn.Sequential(*network)
 
+    def compute_number_params(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
     def loss(self, x, theta,w):
         log_sigmoid = torch.nn.LogSigmoid()
         x_tilde = x[torch.randperm(x.shape[0])]
