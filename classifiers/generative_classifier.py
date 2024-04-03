@@ -194,3 +194,46 @@ class GenerativeClassifier(torch.nn.Module):
                         device) + '; train_acc = ' + str(train_accuracy) + '; unlab_acc = ' + str(
                         unlabeled_accuracy) + '; test_acc= ' + str(test_accuracy))
         return train_accuracy_trace, unlabeled_accuracy_trace, test_accuracy_trace, indices
+
+    def train_with_Gibbs(self,T, epochs, batch_size, train_samples,train_prior_probs, train_labels, unlabeled_samples, unlabeled_prior_probs, unlabeled_labels, test_samples, test_prior_probs, test_labels, recording_frequency = 1, lr=5e-3, weight_decay=5e-5):
+        current_unlabeled_labels = torch.distributions.Categorical(unlabeled_prior_probs).sample(unlabeled_samples.shape[0])
+        current_labels = torch.cat([train_labels,current_unlabeled_labels])
+        samples = torch.cat([train_samples,unlabeled_samples])
+        aggregate_loss_trace = []
+        train_loss_trace = []
+        unlabeled_loss_trace = []
+        test_loss_trace = []
+        indices = []
+        for t in range(T):
+            self.conditional_model.initialize_with_EM(self.samples, 50, verbose=True)
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            self.to(device)
+            para_dict = []
+            for model in self.conditional_model.model:
+                para_dict.insert(-1, {'params': model.parameters(), 'lr': lr, 'weight_decay': weight_decay})
+            optimizer = torch.optim.Adam(para_dict)
+            dataset = torch.utils.data.TensorDataset(samples, current_labels)
+            pbar = tqdm(range(epochs))
+            for __ in pbar:
+                self.to(device)
+                dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+                for _, batch in enumerate(dataloader):
+                    optimizer.zero_grad()
+                    loss = self.loss(batch[0].to(device), batch[1].to(device))
+                    loss.backward()
+                    optimizer.step()
+                if __ % recording_frequency == 0:
+                    with torch.no_grad():
+                        self.to(torch.device('cpu'))
+                        aggregate_loss = self.loss(samples,current_labels).item()
+                        aggregate_loss_trace.append(aggregate_loss)
+                        train_loss = self.loss(train_samples,train_labels).item()
+                        train_loss_trace.append(train_loss)
+                        unlabeled_loss = self.loss(unlabeled_samples,unlabeled_labels).item()
+                        unlabeled_loss_trace.append(unlabeled_loss)
+                        test_loss = self.loss(test_samples,test_labels).item()
+                        test_loss_trace.append(test_loss)
+                        pbar.set_postfix_str('aggregate_loss = ' + str(round(aggregate_loss, 4)) + '; device = ' + str(
+                            device) + '; train_loss = ' + str(train_loss) + '; unlab_loss = ' + str(
+                            unlabeled_loss) + '; test_loss= ' + str(test_loss))
+            return aggregate_loss_trace, train_loss_trace, unlabeled_loss_trace, test_loss_trace, indices
