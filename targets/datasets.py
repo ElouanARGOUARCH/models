@@ -57,7 +57,7 @@ def get_WineQuality_dataset(one_hot = False):
         return torch.tensor(samples), torch.nn.functional.one_hot(torch.tensor(labels))
     else:
         return torch.tensor(samples),torch.tensor(labels)
-
+'''
 from keras.datasets import cifar10, cifar100
 import matplotlib.pyplot as plt
 def get_CIFAR10_dataset(one_hot = False, visual = False):
@@ -93,4 +93,4 @@ def get_CIFAR100_dataset(one_hot = False, visual = False):
             plt.imshow(trainX[i])
         # show the figure
         plt.show()
-    return samples, labels
+    return samples, labels'''
