@@ -8,7 +8,7 @@ def shuffle(tensor, randperm=None):
         randperm = torch.randperm(tensor.shape[0])
     return tensor[randperm], randperm
 
-def get_MNIST_dataset(one_hot = False,repository = 'C:\\Users\\Elouan\\PycharmProjects\\models\\targets\\data', visual = True):
+def get_MNIST_dataset(one_hot = False,repository = 'C:\\Users\\Elouan\\PycharmProjects\\models\\targets\\data', visual = False):
     mnist_trainset = datasets.MNIST(root=repository, train=True,
                                     download=True, transform=None)
     mnist_testset = datasets.MNIST(root=repository, train=False,
@@ -34,7 +34,7 @@ def get_MNIST_dataset(one_hot = False,repository = 'C:\\Users\\Elouan\\PycharmPr
 
 _ = get_MNIST_dataset()
 
-def get_FashionMNIST_dataset(one_hot = False,repository = 'C:\\Users\\Elouan\\PycharmProjects\\models\\targets\\data', visual = True):
+def get_FashionMNIST_dataset(one_hot = False,repository = 'C:\\Users\\Elouan\\PycharmProjects\\models\\targets\\data', visual = False):
     fmnist_trainset = datasets.FashionMNIST(root=repository, train=True,
                                             download=True, transform=None)
     fmnist_testset = datasets.FashionMNIST(root=repository, train=False,

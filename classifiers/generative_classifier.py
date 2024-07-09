@@ -125,13 +125,13 @@ class GenerativeClassifierSemiSupervised(torch.nn.Module):
         return train_accuracy_trace, unlabeled_accuracy_trace, test_accuracy_trace
 
 class GenerativeClassifier(torch.nn.Module):
-    def __init__(self, samples, labels, structure, prior_probs=None):
+    def __init__(self, samples_dim, labels_dim, structure, prior_probs=None):
         super().__init__()
-        self.samples = samples
-        self.sample_dim = samples.shape[-1]
-        self.labels = labels
-        self.C = labels.shape[-1]
-        self.conditional_model = FlowConditionalDensityEstimation(samples, labels, structure)
+        self.sample_dim = samples_dim
+        self.C = labels_dim
+        self.structure = structure
+        self.conditional_model = FlowConditionalDensityEstimation(torch.randn(1, samples_dim),
+                                                                  torch.ones(1, labels_dim), structure)
         if prior_probs is None:
             self.prior_log_probs = torch.log(torch.ones(self.C) / self.C)
         else:
@@ -149,26 +149,26 @@ class GenerativeClassifier(torch.nn.Module):
         augmented_labels = torch.eye(self.C).unsqueeze(0).repeat(samples.shape[0], 1, 1).to(samples.device)
         return self.conditional_model.log_prob(augmented_samples, augmented_labels)
 
-    def log_posterior_prob(self, samples, prior):
-        return torch.softmax(self.log_prob(samples) + torch.log(prior.unsqueeze(0)), dim=-1)
-
     def loss(self, samples, labels):
-        return -torch.sum(self.conditional_model.log_prob(samples, labels))
+        return -torch.mean(torch.sum(self.log_prob(samples)*labels, dim = -1), dim = 0)
 
-    def train(self, epochs, batch_size=None, unlabeled_samples=None, unlabeled_labels=None,
-              test_samples=None, test_labels=None, recording_frequency = 1, lr=5e-3, weight_decay=5e-5):
-        self.conditional_model.initialize_with_EM(self.samples, 50, verbose=True)
+    def log_posterior_prob(self, samples, prior):
+        log_joint = self.log_prob(samples) + torch.log(prior.unsqueeze(0))
+        return log_joint - torch.logsumexp(log_joint, dim = -1, keepdim=True)
+
+    def train(self, epochs, batch_size, train_samples, train_labels, list_test_samples = [], list_test_prior_probs = [],list_test_labels = [],verbose = False, recording_frequency=1, lr=5e-3, weight_decay=5e-5):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
         para_dict = []
         for model in self.conditional_model.model:
             para_dict.insert(-1, {'params': model.parameters(), 'lr': lr, 'weight_decay': weight_decay})
         optimizer = torch.optim.Adam(para_dict)
-        dataset = torch.utils.data.TensorDataset(self.samples, self.labels)
-        train_accuracy_trace = []
-        unlabeled_accuracy_trace = []
-        test_accuracy_trace = []
-        indices = []
+        total_samples = torch.cat([train_samples] + list_test_samples, dim = 0)
+        total_labels = torch.cat([train_labels] + [list_test_prior_probs[i].unsqueeze(0).repeat(list_test_samples[i].shape[0],1) for i in range(len(list_test_prior_probs))], dim=0)
+        dataset = torch.utils.data.TensorDataset(total_samples, total_labels)
+        if verbose:
+            train_loss_trace = []
+            list_test_loss_trace = [[] for i in range(len(list_test_samples))]
         pbar = tqdm(range(epochs))
         for __ in pbar:
             self.to(device)
@@ -178,62 +178,37 @@ class GenerativeClassifier(torch.nn.Module):
                 loss = self.loss(batch[0].to(device), batch[1].to(device))
                 loss.backward()
                 optimizer.step()
-            if __ % recording_frequency == 0 or __<100:
+            if __ % recording_frequency == 0 and verbose:
                 with torch.no_grad():
                     self.to(torch.device('cpu'))
-                    iteration_loss = torch.tensor(
-                        [self.loss(batch[0], batch[1]) for _, batch in enumerate(dataloader)]).sum().item()
-                    train_accuracy = compute_accuracy(self.log_prob(self.samples), self.labels)
-                    train_accuracy_trace.append(train_accuracy.item())
-                    unlabeled_accuracy = compute_accuracy(self.log_prob(unlabeled_samples), unlabeled_labels)
-                    unlabeled_accuracy_trace.append(unlabeled_accuracy.item())
-                    test_accuracy = compute_accuracy(self.log_prob(test_samples), test_labels)
-                    test_accuracy_trace.append(test_accuracy.item())
-                    indices.append(__)
-                    pbar.set_postfix_str('loss = ' + str(round(iteration_loss, 4)) + '; device = ' + str(
-                        device) + '; train_acc = ' + str(train_accuracy) + '; unlab_acc = ' + str(
-                        unlabeled_accuracy) + '; test_acc= ' + str(test_accuracy))
-        return train_accuracy_trace, unlabeled_accuracy_trace, test_accuracy_trace, indices
+                    train_loss = self.loss(train_samples, train_labels).item()
+                    train_loss_trace.append(train_loss)
+                    postfix_str = 'device = ' + str(
+                        device) + '; train_loss = ' + str(round(train_loss, 4))
+                    for i in range(len(list_test_samples)):
+                        test_loss = self.loss(list_test_samples[i], list_test_labels[i]).item()
+                        list_test_loss_trace[i].append(test_loss)
+                        postfix_str += '; test_loss_' + str(i) + ' = ' + str(round(test_loss, 4))
+                    pbar.set_postfix_str(postfix_str)
+        self.to(torch.device('cpu'))
+        if verbose:
+            return train_loss_trace, list_test_loss_trace
 
-    def train_with_Gibbs(self,T, epochs, batch_size, train_samples,train_prior_probs, train_labels, unlabeled_samples, unlabeled_prior_probs, unlabeled_labels, test_samples, test_prior_probs, test_labels, recording_frequency = 1, lr=5e-3, weight_decay=5e-5):
-        current_unlabeled_labels = torch.distributions.Categorical(unlabeled_prior_probs).sample(unlabeled_samples.shape[0])
-        current_labels = torch.cat([train_labels,current_unlabeled_labels])
-        samples = torch.cat([train_samples,unlabeled_samples])
-        aggregate_loss_trace = []
-        train_loss_trace = []
-        unlabeled_loss_trace = []
-        test_loss_trace = []
-        indices = []
+    def gibbs(self, T, epochs, batch_size, train_samples,train_prior_probs, train_labels,list_test_samples = [], list_test_prior_probs = [], list_test_labels = [], recording_frequency = 1, lr = 5e-3, weight_decay = 5e-5):
+        self.train(epochs, batch_size, train_samples, train_labels, [],[],[],False,recording_frequency, lr, weight_decay)
+        total_samples = torch.cat([train_samples] + list_test_samples, dim = 0)
+        print(compute_accuracy(self.log_posterior_prob(train_samples, train_prior_probs), train_labels))
+        total_labels = [train_labels]
+        for i in range(len(list_test_samples)):
+            print(compute_accuracy(self.log_posterior_prob(list_test_samples[i], list_test_prior_probs[i]),list_test_labels[i]))
+            total_labels += [torch.nn.functional.one_hot(torch.distributions.Categorical(torch.exp(self.log_posterior_prob(list_test_samples[i], list_test_prior_probs[i]))).sample(),num_classes=self.C)]
+        total_labels = torch.cat(total_labels, dim=0)
         for t in range(T):
-            self.conditional_model.initialize_with_EM(self.samples, 50, verbose=True)
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            self.to(device)
-            para_dict = []
-            for model in self.conditional_model.model:
-                para_dict.insert(-1, {'params': model.parameters(), 'lr': lr, 'weight_decay': weight_decay})
-            optimizer = torch.optim.Adam(para_dict)
-            dataset = torch.utils.data.TensorDataset(samples, current_labels)
-            pbar = tqdm(range(epochs))
-            for __ in pbar:
-                self.to(device)
-                dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
-                for _, batch in enumerate(dataloader):
-                    optimizer.zero_grad()
-                    loss = self.loss(batch[0].to(device), batch[1].to(device))
-                    loss.backward()
-                    optimizer.step()
-                if __ % recording_frequency == 0:
-                    with torch.no_grad():
-                        self.to(torch.device('cpu'))
-                        aggregate_loss = self.loss(samples,current_labels).item()
-                        aggregate_loss_trace.append(aggregate_loss)
-                        train_loss = self.loss(train_samples,train_labels).item()
-                        train_loss_trace.append(train_loss)
-                        unlabeled_loss = self.loss(unlabeled_samples,unlabeled_labels).item()
-                        unlabeled_loss_trace.append(unlabeled_loss)
-                        test_loss = self.loss(test_samples,test_labels).item()
-                        test_loss_trace.append(test_loss)
-                        pbar.set_postfix_str('aggregate_loss = ' + str(round(aggregate_loss, 4)) + '; device = ' + str(
-                            device) + '; train_loss = ' + str(train_loss) + '; unlab_loss = ' + str(
-                            unlabeled_loss) + '; test_loss= ' + str(test_loss))
-            return aggregate_loss_trace, train_loss_trace, unlabeled_loss_trace, test_loss_trace, indices
+            self.conditional_model = FlowConditionalDensityEstimation(torch.randn(1, self.sample_dim),torch.ones(1, self.C), self.structure)
+            self.train(epochs, batch_size, total_samples, total_labels, [],[],[],False,recording_frequency, lr, weight_decay)
+            print(compute_accuracy(self.log_posterior_prob(train_samples, train_prior_probs), train_labels))
+            total_labels = [train_labels]
+            for i in range(len(list_test_samples)):
+                print(compute_accuracy(self.log_posterior_prob(list_test_samples[i], list_test_prior_probs[i]), list_test_labels[i]))
+                total_labels += [torch.nn.functional.one_hot(torch.distributions.Categorical(torch.exp(self.log_posterior_prob(list_test_samples[i], list_test_prior_probs[i]))).sample(), num_classes=self.C)]
+            total_labels = torch.cat(total_labels, dim=0)

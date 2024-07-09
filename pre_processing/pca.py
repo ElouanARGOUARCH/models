@@ -18,3 +18,4 @@ class PCA():
 
     def inverse_transform(self, data):
         return torch.tensor(self.transformer.inverse_transform(data)).float()
+

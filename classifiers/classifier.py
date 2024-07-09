@@ -55,13 +55,10 @@ class BinaryClassifier(torch.nn.Module):
         self.to(torch.device('cpu'))
 
 class Classifier(torch.nn.Module):
-    def __init__(self, samples, labels, hidden_dimensions=[]):
+    def __init__(self, sample_dim, C, hidden_dimensions=[]):
         super().__init__()
-        assert samples.shape[0] == labels.shape[0], 'number of samples does not match number of samples'
-        self.samples = samples
-        self.labels = labels
-        self.sample_dim = samples.shape[-1]
-        self.C = labels.shape[-1]
+        self.sample_dim = sample_dim
+        self.C = C
         self.network_dimensions = [self.sample_dim] + hidden_dimensions + [self.C]
         network = []
         for h0, h1 in zip(self.network_dimensions, self.network_dimensions[1:]):
@@ -76,18 +73,16 @@ class Classifier(torch.nn.Module):
         return temp - torch.logsumexp(temp, dim=-1, keepdim=True)
 
     def loss(self, samples, labels):
-        return -torch.sum(self.log_prob(samples) * labels)
+        return -torch.mean(self.log_prob(samples) * labels)
 
-    def train(self, epochs, batch_size=None, unlabeled_samples=None, unlabeled_labels=None,
-              test_samples=None, test_labels=None, recording_frequency=1, lr=5e-3, weight_decay=5e-5):
+    def train(self, epochs, batch_size,train_samples, train_labels,list_test_samples = [], list_test_labels = [],verbose = False, recording_frequency = 1, lr=5e-4, weight_decay=5e-5):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
-        optimizer = torch.optim.Adam(self.parameters(), lr = lr, weight_decay = weight_decay)
-        dataset = torch.utils.data.TensorDataset(self.samples, self.labels)
-        train_accuracy_trace = []
-        unlabeled_accuracy_trace = []
-        test_accuracy_trace = []
-        indices = []
+        optimizer = torch.optim.Adam(self.parameters())
+        dataset = torch.utils.data.TensorDataset(train_samples, train_labels)
+        if verbose:
+            train_loss_trace = []
+            list_test_loss_trace = [[] for i in range(len(list_test_samples))]
         pbar = tqdm(range(epochs))
         for __ in pbar:
             self.to(device)
@@ -97,19 +92,18 @@ class Classifier(torch.nn.Module):
                 loss = self.loss(batch[0].to(device), batch[1].to(device))
                 loss.backward()
                 optimizer.step()
-            if __ % recording_frequency == 0 or __ < 100:
+            if __ % recording_frequency == 0 and verbose:
                 with torch.no_grad():
                     self.to(torch.device('cpu'))
-                    iteration_loss = torch.tensor(
-                        [self.loss(batch[0], batch[1]) for _, batch in enumerate(dataloader)]).sum().item()
-                    train_accuracy = compute_accuracy(self.log_prob(self.samples), self.labels)
-                    train_accuracy_trace.append(train_accuracy.item())
-                    unlabeled_accuracy = compute_accuracy(self.log_prob(unlabeled_samples), unlabeled_labels)
-                    unlabeled_accuracy_trace.append(unlabeled_accuracy.item())
-                    test_accuracy = compute_accuracy(self.log_prob(test_samples), test_labels)
-                    test_accuracy_trace.append(test_accuracy.item())
-                    indices.append(__)
-                    pbar.set_postfix_str('loss = ' + str(round(iteration_loss, 4)) + '; device = ' + str(
-                        device) + '; train_acc = ' + str(train_accuracy) + '; unlab_acc = ' + str(
-                        unlabeled_accuracy) + '; test_acc= ' + str(test_accuracy))
-        return train_accuracy_trace, unlabeled_accuracy_trace, test_accuracy_trace, indices
+                    train_loss = self.loss(train_samples, train_labels).item()
+                    train_loss_trace.append(train_loss)
+                    postfix_str = 'device = ' + str(
+                        device) + '; train_loss = ' + str(round(train_loss, 4))
+                    for i in range(len(list_test_samples)):
+                        test_loss = self.loss(list_test_samples[i], list_test_labels[i]).item()
+                        list_test_loss_trace[i].append(test_loss)
+                        postfix_str += '; test_loss_'+ str(i) +' = ' + str(round(test_loss, 4))
+                    pbar.set_postfix_str(postfix_str)
+        self.to(torch.device('cpu'))
+        if verbose:
+            return train_loss_trace, list_test_loss_trace
